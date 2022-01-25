@@ -1,0 +1,3 @@
+NotifyOnHassUpdateConfig:
+  UpdateTimeInSec: 30
+  Title: Updates pending in Home Assistant
