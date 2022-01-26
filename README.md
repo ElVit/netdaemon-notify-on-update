@@ -8,7 +8,7 @@ This App will display updates for:
 - Home Assistant Addon
 - HACS Repository
 
-There are 3 options available to modify this app:
+There are 3 Options available to modify this App:
 - UpdateTimeInSec
   - Default Value: 30
   - Description: defines the update time to serch for new updates
