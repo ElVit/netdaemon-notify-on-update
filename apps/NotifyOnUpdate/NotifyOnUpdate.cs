@@ -124,7 +124,7 @@ public class NotifyOnUpdateApp
           if (hacsRepositories == null) return;
           foreach(var repo in hacsRepositories)
           {
-            message += $"* **{repo.display_name?.ToString()}** {repo.installed_version?.ToString()} -> {repo.available_version?.ToString()}\n";
+            message += $"* **{repo.display_name?.ToString()}** {repo.installed_version?.ToString()} \uD83E\uDC16 {repo.available_version?.ToString()}\n";
           }
         }
         HacsMessage = message;

@@ -1,4 +1,4 @@
 NotifyOnUpdate.NotifyOnUpdateConfig:
   UpdateTimeInSec: 30
-  NotifyTitle: Updates verfügbar
+  NotifyTitle: Updates available in Home Assistant
   NotifyId: updates_available
