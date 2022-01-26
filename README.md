@@ -13,7 +13,7 @@ This App will display updates for:
 There are 3 Options available to modify this App:  
 - UpdateTimeInSec
   - Default Value: 30
-  - Description: defines the update time to serch for new updates
+  - Description: defines the update time in seconds to search for new updates
 - NotifyTitle:
   - Default Value: Update available in Home Assistant
   - Description: defines the title of the persistent notification
