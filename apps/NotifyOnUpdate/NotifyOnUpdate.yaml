@@ -1,3 +1,4 @@
-NotifyOnUpdateConfig:
+NotifyOnUpdate.NotifyOnUpdateConfig:
   UpdateTimeInSec: 30
-  Title: Updates pending in Home Assistant
+  NotifyTitle: Updates verfügbar
+  NotifyId: updates_available

@@ -18,19 +18,21 @@ namespace NotifyOnUpdate;
 public class NotifyOnUpdateConfig
 {
   public double? UpdateTimeInSec { get; set; }
-  public string? Title { get; set; }
+  public string? NotifyTitle { get; set; }
+  public string? NotifyId { get; set; }
 }
 
 /// <summary>
 /// Creates a persistent notification in Home Assistant if a new Updates is available
 /// </summary>
 [NetDaemonApp]
-public class NotifyOnUpdate
+public class NotifyOnUpdateApp
 {
   private HttpClient mHttpClient = new HttpClient();
   private readonly IHaContext mHaContext;
-  private readonly ILogger<NotifyOnUpdate> mLogger;
-  private string mTitle;
+  private readonly ILogger<NotifyOnUpdateApp> mLogger;
+  private string mServiceDataTitle;
+  private string mServiceDataId;
   private string? mHacsMessage;
   private string? mCoreMessage;
   private string? mOsMessage;
@@ -41,7 +43,7 @@ public class NotifyOnUpdate
     get => mHacsMessage ?? String.Empty;
     set
     {
-      if (value != mHacsMessage)
+      if (mHacsMessage != value)
       {
         mHacsMessage = value;
         SetPersistenNotification();
@@ -53,7 +55,7 @@ public class NotifyOnUpdate
     get => mCoreMessage ?? String.Empty;
     set
     {
-      if (value != mCoreMessage)
+      if (mCoreMessage != value)
       {
         mCoreMessage = value;
         SetPersistenNotification();
@@ -65,7 +67,7 @@ public class NotifyOnUpdate
     get => mOsMessage ?? String.Empty;
     set
     {
-      if (value != mOsMessage)
+      if (mOsMessage != value)
       {
         mOsMessage = value;
         SetPersistenNotification();
@@ -77,7 +79,7 @@ public class NotifyOnUpdate
     get => mSupervisorMessage ?? String.Empty;
     set
     {
-      if (value != mSupervisorMessage)
+      if (mSupervisorMessage != value)
       {
         mSupervisorMessage = value;
         SetPersistenNotification();
@@ -85,14 +87,20 @@ public class NotifyOnUpdate
     }
   }
 
-  public NotifyOnUpdate(IHaContext ha, INetDaemonScheduler scheduler,
-                        IAppConfig<NotifyOnUpdateConfig> config,
-                        ILogger<NotifyOnUpdate> logger)
+  public NotifyOnUpdateApp(IHaContext ha, INetDaemonScheduler scheduler,
+                            IAppConfig<NotifyOnUpdateConfig> config,
+                            ILogger<NotifyOnUpdateApp> logger)
   {
     mHaContext = ha;
     mLogger = logger;
-    mLogger.LogInformation("NotifyOnHAUpdate started");
-    mTitle = config.Value.Title ?? "Updates pending in Home Assistant";
+    mLogger.LogInformation("NotifyOnUpdateApp started");
+
+    if (String.IsNullOrEmpty(config.Value.NotifyTitle)) mLogger.LogWarning("Default value 'Updates pending in Home Assistant' is used for NotifyTitle");
+    if (String.IsNullOrEmpty(config.Value.NotifyId)) mLogger.LogWarning("Default value 'updates_available' is used for NotifyId");
+    if (config.Value.UpdateTimeInSec == null) mLogger.LogWarning("Default value '30' is used for UpdateTimeInSec");
+
+    mServiceDataTitle = config.Value.NotifyTitle ?? "Updates pending in Home Assistant";
+    mServiceDataId = config.Value.NotifyId ?? "updates_available";
     var updateTime = config.Value.UpdateTimeInSec ?? 30;
 
     scheduler.RunEvery(TimeSpan.FromSeconds(updateTime), async () =>
@@ -128,9 +136,6 @@ public class NotifyOnUpdate
   /// </summary>
   private void SetPersistenNotification()
   {
-    var serviceDataTitle = mTitle;
-    var serviceDataId = "updates_available";
-
     var serviceDataMessage = String.Empty;
     if (!String.IsNullOrEmpty(CoreMessage) ||
         !String.IsNullOrEmpty(OsMessage) ||
@@ -149,16 +154,16 @@ public class NotifyOnUpdate
     {
       mHaContext.CallService("persistent_notification", "create", data: new
         {
-          title = serviceDataTitle,
+          title = mServiceDataTitle,
           message = serviceDataMessage,
-          notification_id = serviceDataId
+          notification_id = mServiceDataId
         });
     }
     else
     {
       mHaContext.CallService("persistent_notification", "dismiss", data: new
         {
-          notification_id = serviceDataId
+          notification_id = mServiceDataId
         });
     }
   }
@@ -169,7 +174,12 @@ public class NotifyOnUpdate
   private async Task<string> GetVersionByCurl(string versionType)
   {
     var message = String.Empty;
-    var supervisorToken = Environment.GetEnvironmentVariable("SUPERVISOR_TOKEN") ?? "(none)";
+    var supervisorToken = Environment.GetEnvironmentVariable("SUPERVISOR_TOKEN") ?? String.Empty;
+    if (String.IsNullOrEmpty(supervisorToken))
+    {
+      mLogger.LogError("Get Supervisor Token failed");
+      return String.Empty;
+    }
 
     using (var request = new HttpRequestMessage(HttpMethod.Get, $"http://supervisor/{versionType.ToLower()}/info"))
     {
