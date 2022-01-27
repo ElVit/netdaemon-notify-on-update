@@ -34,21 +34,10 @@ public class NotifyOnUpdateApp
   private string mServiceDataTitle;
   private string mServiceDataId;
   private bool mHaUpdateAvailable;
-  private string? mHacsMessage;
+  private bool mAddonUpdateAvailable;
   private string? mHaMessage;
+  private string? mHacsMessage;
 
-  private string HacsMessage
-  {
-    get => mHacsMessage ?? String.Empty;
-    set
-    {
-      if (mHacsMessage != value)
-      {
-        mHacsMessage = value;
-        SetPersistentNotification();
-      }
-    }
-  }
   private string HaMessage
   {
     get => mHaMessage ?? String.Empty;
@@ -57,6 +46,33 @@ public class NotifyOnUpdateApp
       if (mHaMessage != value)
       {
         mHaMessage = value;
+        if (!String.IsNullOrEmpty(mHaMessage))
+        {
+          if (mHaUpdateAvailable)
+          {
+            mLogger.LogInformation("New Home Assistant Update is available");
+          }
+          if (mAddonUpdateAvailable)
+          {
+            mLogger.LogInformation("New Addon Update is available");
+          }
+        }
+        SetPersistentNotification();
+      }
+    }
+  }
+  private string HacsMessage
+  {
+    get => mHacsMessage ?? String.Empty;
+    set
+    {
+      if (mHacsMessage != value)
+      {
+        mHacsMessage = value;
+        if (!String.IsNullOrEmpty(mHaMessage))
+        {
+          mLogger.LogInformation("New Hacs Update is available");
+        }
         SetPersistentNotification();
       }
     }
@@ -84,6 +100,7 @@ public class NotifyOnUpdateApp
     scheduler.RunEvery(TimeSpan.FromSeconds(updateTime), async () =>
     {
       mHaUpdateAvailable = false;
+      mAddonUpdateAvailable = false;
       var message = String.Empty;
       message += await GetVersionByCurl("Core");
       message += await GetVersionByCurl("OS");
@@ -98,10 +115,9 @@ public class NotifyOnUpdateApp
         var message = String.Empty;
         var hacsState = s.New?.State;
         var hacsRepos = s.New?.Attributes?.repositories;
-        if (hacsState > 0 && hacsRepos != null)
+        if (hacsState > 0 && (hacsRepos?.Any() ?? false))
         {
-          mLogger.LogInformation("New HACS Update is available");
-          message += "[HACS](/hacs)\n\n";
+          message += "\n\n[HACS](/hacs)\n\n";
           foreach (var repo in hacsRepos)
           {
             message += $"* **{repo.display_name?.ToString()}**: {repo.installed_version?.ToString()} \u27A1 {repo.available_version?.ToString()}\n";
@@ -142,19 +158,18 @@ public class NotifyOnUpdateApp
       if (update_available)
       {
         mHaUpdateAvailable = true;
-        mLogger.LogInformation("New Home Assistant Update is available");
         message += $"* **{versionType}**: {curlData?.version} \u27A1 {curlData?.version_latest}\n";
       }
 
       if (curlData?.addons != null && curlData.addons.Where(x => x.update_available != null).Any(x => x.update_available == true))
       {
-        mLogger.LogInformation("New Addon Update is available");
         message += $"\n\n[Add-ons](/config/dashboard)\n\n";
         foreach (var addon in curlData.addons)
         {
           var addon_update_available = addon?.update_available ?? false;
           if (addon_update_available)
           {
+            mAddonUpdateAvailable = true;
             message += $"* [**{addon?.name}**](/hassio/addon/{addon?.slug}/info): {addon?.version} \u27A1 {addon?.version_latest}\n";
           }
         }
@@ -175,10 +190,6 @@ public class NotifyOnUpdateApp
       serviceDataMessage += "[Home Assistant](/config/dashboard)\n\n";
     }
     serviceDataMessage += HaMessage;
-    if (!String.IsNullOrEmpty(serviceDataMessage))
-    {
-      serviceDataMessage += "\n\n";
-    }
     serviceDataMessage += HacsMessage;
 
     if (!String.IsNullOrEmpty(serviceDataMessage))
