@@ -1,8 +1,8 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![netdaemon_badge](https://img.shields.io/badge/NetDaemon-v3-pink)](https://netdaemon.xyz/docs/v3)
 
-# NetDaemon App: Update Notifications
-A NetDaemon App that will create a persistent notification if there is an update available.  
+# Update Notifications
+A NetDaemon App that will create a persistent notification in Home Assistant if there is an update available.  
   
   
 This App will display updates for:  
