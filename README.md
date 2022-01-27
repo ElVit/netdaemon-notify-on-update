@@ -1,3 +1,5 @@
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+
 # NetDaemon App: Update Notifications
 A NetDaemon App that will create a persistent notification if there is an update available.  
   
