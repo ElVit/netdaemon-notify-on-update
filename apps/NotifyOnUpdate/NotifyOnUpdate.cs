@@ -96,14 +96,15 @@ public class NotifyOnUpdateApp
     hacs.StateAllChanges().Subscribe(s =>
       {
         var message = String.Empty;
-        if (s.New?.State > 0)
+        var hacsState = s.New?.State;
+        var hacsRepos = s.New?.Attributes?.repositories;
+        if (hacsState > 0 && hacsRepos != null)
         {
-          message = "[HACS](/hacs)\n\n";
-          var hacsRepos = s.New?.Attributes?.repositories;
-          if (hacsRepos == null) return;
+          mLogger.LogInformation("New HACS Update is available");
+          message += "[HACS](/hacs)\n\n";
           foreach (var repo in hacsRepos)
           {
-            message += $"* **{repo.display_name?.ToString()}** {repo.installed_version?.ToString()} \u27A1 {repo.available_version?.ToString()}\n";
+            message += $"* **{repo.display_name?.ToString()}**: {repo.installed_version?.ToString()} \u27A1 {repo.available_version?.ToString()}\n";
           }
         }
         HacsMessage = message;
@@ -111,7 +112,7 @@ public class NotifyOnUpdateApp
   }
 
   /// <summary>
-  /// Sends a CURL (HTTP Request) message to get the current and actual versions from Home Assistant and its Addons
+  /// Sends a CURL (HTTP GET Request) message to get the current and actual versions from Home Assistant and its Addons
   /// </summary>
   private async Task<string> GetVersionByCurl(string versionType)
   {
@@ -142,7 +143,7 @@ public class NotifyOnUpdateApp
       {
         mHaUpdateAvailable = true;
         mLogger.LogInformation("New Home Assistant Update is available");
-        message += $"* **{versionType}** {curlData?.version} \u27A1 {curlData?.version_latest}\n";
+        message += $"* **{versionType}**: {curlData?.version} \u27A1 {curlData?.version_latest}\n";
       }
 
       if (curlData?.addons != null && curlData.addons.Where(x => x.update_available != null).Any(x => x.update_available == true))
@@ -154,7 +155,7 @@ public class NotifyOnUpdateApp
           var addon_update_available = addon?.update_available ?? false;
           if (addon_update_available)
           {
-            message += $"* [**{addon?.name}**](/hassio/addon/{addon?.slug}/info) {addon?.version} \u27A1 {addon?.version_latest}\n";
+            message += $"* [**{addon?.name}**](/hassio/addon/{addon?.slug}/info): {addon?.version} \u27A1 {addon?.version_latest}\n";
           }
         }
       }
