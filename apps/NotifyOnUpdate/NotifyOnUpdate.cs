@@ -33,10 +33,9 @@ public class NotifyOnUpdateApp
   private readonly ILogger<NotifyOnUpdateApp> mLogger;
   private string mServiceDataTitle;
   private string mServiceDataId;
+  private bool mHaUpdateAvailable;
   private string? mHacsMessage;
-  private string? mCoreMessage;
-  private string? mOsMessage;
-  private string? mSupervisorMessage;
+  private string? mHaMessage;
 
   private string HacsMessage
   {
@@ -46,43 +45,19 @@ public class NotifyOnUpdateApp
       if (mHacsMessage != value)
       {
         mHacsMessage = value;
-        SetPersistenNotification();
+        SetPersistentNotification();
       }
     }
   }
-  private string CoreMessage
+  private string HaMessage
   {
-    get => mCoreMessage ?? String.Empty;
+    get => mHaMessage ?? String.Empty;
     set
     {
-      if (mCoreMessage != value)
+      if (mHaMessage != value)
       {
-        mCoreMessage = value;
-        SetPersistenNotification();
-      }
-    }
-  }
-  private string OsMessage
-  {
-    get => mOsMessage ?? String.Empty;
-    set
-    {
-      if (mOsMessage != value)
-      {
-        mOsMessage = value;
-        SetPersistenNotification();
-      }
-    }
-  }
-  private string SupervisorMessage
-  {
-    get => mSupervisorMessage ?? String.Empty;
-    set
-    {
-      if (mSupervisorMessage != value)
-      {
-        mSupervisorMessage = value;
-        SetPersistenNotification();
+        mHaMessage = value;
+        SetPersistentNotification();
       }
     }
   }
@@ -93,22 +68,27 @@ public class NotifyOnUpdateApp
   {
     mHaContext = ha;
     mLogger = logger;
-    mLogger.LogInformation("NotifyOnUpdateApp started");
 
-    if (String.IsNullOrEmpty(config.Value.NotifyTitle)) mLogger.LogWarning("Default value 'Updates pending in Home Assistant' is used for NotifyTitle");
-    if (String.IsNullOrEmpty(config.Value.NotifyId)) mLogger.LogWarning("Default value 'updates_available' is used for NotifyId");
-    if (config.Value.UpdateTimeInSec == null) mLogger.LogWarning("Default value '30' is used for UpdateTimeInSec");
+    if (String.IsNullOrEmpty(config.Value.NotifyTitle))
+      mLogger.LogWarning("Default value 'Updates pending in Home Assistant' is used for NotifyTitle");
+    if (String.IsNullOrEmpty(config.Value.NotifyId))
+      mLogger.LogWarning("Default value 'updates_available' is used for NotifyId");
+    if (config.Value.UpdateTimeInSec == null)
+      mLogger.LogWarning("Default value '30' is used for UpdateTimeInSec");
 
     mServiceDataTitle = config.Value.NotifyTitle ?? "Updates pending in Home Assistant";
     mServiceDataId = config.Value.NotifyId ?? "updates_available";
     var updateTime = config.Value.UpdateTimeInSec ?? 30;
 
+    // Get Home Assistant Updates
     scheduler.RunEvery(TimeSpan.FromSeconds(updateTime), async () =>
     {
-      // Get Home Assistant Updates
-      CoreMessage = await GetVersionByCurl("Core");
-      OsMessage = await GetVersionByCurl("OS");
-      SupervisorMessage = await GetVersionByCurl("Supervisor");
+      mHaUpdateAvailable = false;
+      var message = String.Empty;
+      message += await GetVersionByCurl("Core");
+      message += await GetVersionByCurl("OS");
+      message += await GetVersionByCurl("Supervisor");
+      HaMessage = message;
     });
 
     // Get HACS Updates
@@ -119,12 +99,11 @@ public class NotifyOnUpdateApp
         if (s.New?.State > 0)
         {
           message = "[HACS](/hacs)\n\n";
-          var hacsRepositories = s.New?.Attributes?.repositories;
-
-          if (hacsRepositories == null) return;
-          foreach(var repo in hacsRepositories)
+          var hacsRepos = s.New?.Attributes?.repositories;
+          if (hacsRepos == null) return;
+          foreach (var repo in hacsRepos)
           {
-            message += $"* **{repo.display_name?.ToString()}** {repo.installed_version?.ToString()} \uD83E\uDC16 {repo.available_version?.ToString()}\n";
+            message += $"* **{repo.display_name?.ToString()}** {repo.installed_version?.ToString()} \u27A1 {repo.available_version?.ToString()}\n";
           }
         }
         HacsMessage = message;
@@ -132,18 +111,69 @@ public class NotifyOnUpdateApp
   }
 
   /// <summary>
+  /// Sends a CURL (HTTP Request) message to get the current and actual versions from Home Assistant and its Addons
+  /// </summary>
+  private async Task<string> GetVersionByCurl(string versionType)
+  {
+    var message = String.Empty;
+    var supervisorToken = Environment.GetEnvironmentVariable("SUPERVISOR_TOKEN") ?? String.Empty;
+    if (String.IsNullOrEmpty(supervisorToken))
+    {
+      mLogger.LogError("Get Supervisor Token failed");
+      return String.Empty;
+    }
+
+    using (var request = new HttpRequestMessage(HttpMethod.Get, $"http://supervisor/{versionType.ToLower()}/info"))
+    {
+      request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", supervisorToken);
+      var response = await mHttpClient.SendAsync(request);
+
+      if (!response.ToString().Contains("StatusCode: 200"))
+      {
+        mLogger.LogError($"HTTP GET did NOT respond with StatusCode: 200 (OK)\n{response}");
+      }
+
+      var responseContent = await response.Content.ReadAsStringAsync();
+      var curlContent = JsonSerializer.Deserialize<CurlContent>(responseContent);
+      var curlData = curlContent?.data;
+
+      var update_available = curlData?.update_available ?? false;
+      if (update_available)
+      {
+        mHaUpdateAvailable = true;
+        mLogger.LogInformation("New Home Assistant Update is available");
+        message += $"* **{versionType}** {curlData?.version} \u27A1 {curlData?.version_latest}\n";
+      }
+
+      if (curlData?.addons != null && curlData.addons.Where(x => x.update_available != null).Any(x => x.update_available == true))
+      {
+        mLogger.LogInformation("New Addon Update is available");
+        message += $"\n\n[Add-ons](/config/dashboard)\n\n";
+        foreach (var addon in curlData.addons)
+        {
+          var addon_update_available = addon?.update_available ?? false;
+          if (addon_update_available)
+          {
+            message += $"* [**{addon?.name}**](/hassio/addon/{addon?.slug}/info) {addon?.version} \u27A1 {addon?.version_latest}\n";
+          }
+        }
+      }
+    }
+
+    return message;
+  }
+
+  /// <summary>
   /// Sets the persistent notification if there are any updates available
   /// </summary>
-  private void SetPersistenNotification()
+  private void SetPersistentNotification()
   {
     var serviceDataMessage = String.Empty;
-    if (!String.IsNullOrEmpty(CoreMessage) ||
-        !String.IsNullOrEmpty(OsMessage) ||
-        !String.IsNullOrEmpty(SupervisorMessage))
+    if (mHaUpdateAvailable)
     {
       serviceDataMessage += "[Home Assistant](/config/dashboard)\n\n";
     }
-    serviceDataMessage += CoreMessage + OsMessage + SupervisorMessage;
+    serviceDataMessage += HaMessage;
     if (!String.IsNullOrEmpty(serviceDataMessage))
     {
       serviceDataMessage += "\n\n";
@@ -166,52 +196,6 @@ public class NotifyOnUpdateApp
           notification_id = mServiceDataId
         });
     }
-  }
-
-  /// <summary>
-  /// Sends a CURL (HTTP Request) message to get the current and actual versions from Home Assistant and its Addons
-  /// </summary>
-  private async Task<string> GetVersionByCurl(string versionType)
-  {
-    var message = String.Empty;
-    var supervisorToken = Environment.GetEnvironmentVariable("SUPERVISOR_TOKEN") ?? String.Empty;
-    if (String.IsNullOrEmpty(supervisorToken))
-    {
-      mLogger.LogError("Get Supervisor Token failed");
-      return String.Empty;
-    }
-
-    using (var request = new HttpRequestMessage(HttpMethod.Get, $"http://supervisor/{versionType.ToLower()}/info"))
-    {
-      request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", supervisorToken);
-      var response = await mHttpClient.SendAsync(request);
-      var responseContent = await response.Content.ReadAsStringAsync();
-      var curl = JsonSerializer.Deserialize<CurlContent>(responseContent);
-      var curlData = curl?.data;
-
-      var update_available = curlData?.update_available ?? false;
-      if(update_available)
-      {
-        mLogger.LogInformation("New Home Assistant Update is available");
-        message += $"* **{versionType}** {curlData?.version} \uD83E\uDC16 {curlData?.version_latest}\n";
-      }
-
-      if (curlData?.addons != null && curlData.addons.Where(x => x.update_available != null).Any(x => x.update_available == true))
-      {
-        mLogger.LogInformation("New Addon Update is available");
-        message += $"\n\n[Add-ons](/config/dashboard)\n\n";;
-        foreach(var addon in curlData.addons)
-        {
-          var addon_update_available = curlData?.update_available ?? false;
-          if(addon_update_available)
-          {
-            message += $"* [**{addon?.name}**](/hassio/addon/{addon?.slug}/info) {addon?.version} \uD83E\uDC16 {addon?.version_latest}\n";
-          }
-        }
-      }
-    }
-
-    return message;
   }
 }
 
