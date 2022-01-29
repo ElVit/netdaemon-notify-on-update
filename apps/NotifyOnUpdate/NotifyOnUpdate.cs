@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reactive.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using NetDaemon.AppModel;
@@ -26,7 +27,7 @@ public class NotifyOnUpdateConfig
 /// Creates a persistent notification in Home Assistant if a new Updates is available
 /// </summary>
 [NetDaemonApp]
-public class NotifyOnUpdateApp
+public class NotifyOnUpdateApp : IAsyncInitializable
 {
   private HttpClient mHttpClient = new HttpClient();
   private readonly IHaContext mHaContext;
@@ -35,18 +36,18 @@ public class NotifyOnUpdateApp
   private string mServiceDataId;
   private bool mHaUpdateAvailable;
   private bool mAddonUpdateAvailable;
-  private string? mHaMessage;
+  private string? mHassMessage;
   private string? mHacsMessage;
 
-  private string HaMessage
+  private string HassMessage
   {
-    get => mHaMessage ?? String.Empty;
+    get => mHassMessage ?? String.Empty;
     set
     {
-      if (mHaMessage != value)
+      if (mHassMessage != value)
       {
-        mHaMessage = value;
-        if (!String.IsNullOrEmpty(mHaMessage))
+        mHassMessage = value;
+        if (!String.IsNullOrEmpty(mHassMessage))
         {
           if (mHaUpdateAvailable)
           {
@@ -69,13 +70,21 @@ public class NotifyOnUpdateApp
       if (mHacsMessage != value)
       {
         mHacsMessage = value;
-        if (!String.IsNullOrEmpty(mHaMessage))
+        if (!String.IsNullOrEmpty(mHassMessage))
         {
           mLogger.LogInformation("New Hacs Update is available");
         }
         SetPersistentNotification();
       }
     }
+  }
+
+  public async Task InitializeAsync(CancellationToken cancellationToken)
+  {
+    // Get Home Assistant Updates at startup
+    mHaUpdateAvailable = false;
+    mAddonUpdateAvailable = false;
+    HassMessage = await GetHassMessage();
   }
 
   public NotifyOnUpdateApp(IHaContext ha, INetDaemonScheduler scheduler,
@@ -97,16 +106,19 @@ public class NotifyOnUpdateApp
     var updateTime = config.Value.UpdateTimeInSec ?? 30;
 
     // Get Home Assistant Updates
-    scheduler.RunEvery(TimeSpan.FromSeconds(updateTime), async () =>
+    try
     {
-      mHaUpdateAvailable = false;
-      mAddonUpdateAvailable = false;
-      var message = String.Empty;
-      message += await GetVersionByCurl("Core");
-      message += await GetVersionByCurl("OS");
-      message += await GetVersionByCurl("Supervisor");
-      HaMessage = message;
-    });
+      scheduler.RunEvery(TimeSpan.FromSeconds(updateTime), async() =>
+      {
+          mHaUpdateAvailable = false;
+          mAddonUpdateAvailable = false;
+          HassMessage = await GetHassMessage();
+      });
+    }
+    catch (Exception e)
+    {
+      mLogger.LogError("Exception caught.", e);
+    }
 
     // Get HACS Updates
     var hacs = new NumericEntity<HacsAttributes>(ha, "sensor.hacs");
@@ -127,6 +139,16 @@ public class NotifyOnUpdateApp
       });
   }
 
+  private async Task<string> GetHassMessage()
+  {
+    var message = String.Empty;
+    message += await GetVersionByCurl("Core");
+    message += await GetVersionByCurl("OS");
+    message += await GetVersionByCurl("Supervisor");
+
+    return message;
+  }
+
   /// <summary>
   /// Sends a CURL (HTTP GET Request) message to get the current and actual versions from Home Assistant and its Addons
   /// </summary>
@@ -144,13 +166,19 @@ public class NotifyOnUpdateApp
     {
       request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", supervisorToken);
       var response = await mHttpClient.SendAsync(request);
-
       if (!response.ToString().Contains("StatusCode: 200"))
       {
-        mLogger.LogError($"HTTP GET did NOT respond with StatusCode: 200 (OK)\n{response}");
+        mLogger.LogError($"HTTP GET failed.\n{response}");
+        return String.Empty;
       }
 
       var responseContent = await response.Content.ReadAsStringAsync();
+      if (String.IsNullOrEmpty(responseContent))
+      {
+        mLogger.LogError($"HTTP GET response content is null or empty.");
+        return String.Empty;
+      }
+
       var curlContent = JsonSerializer.Deserialize<CurlContent>(responseContent);
       var curlData = curlContent?.data;
 
@@ -189,7 +217,7 @@ public class NotifyOnUpdateApp
     {
       serviceDataMessage += "[Home Assistant](/config/dashboard)\n\n";
     }
-    serviceDataMessage += HaMessage;
+    serviceDataMessage += HassMessage;
     serviceDataMessage += HacsMessage;
 
     if (!String.IsNullOrEmpty(serviceDataMessage))
