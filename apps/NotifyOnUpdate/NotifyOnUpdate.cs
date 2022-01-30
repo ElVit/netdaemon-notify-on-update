@@ -81,10 +81,14 @@ public class NotifyOnUpdateApp : IAsyncInitializable
 
   public async Task InitializeAsync(CancellationToken cancellationToken)
   {
-    // Get Home Assistant Updates at startup
+    // Get Home Assistant Updates once at startup
     mHaUpdateAvailable = false;
     mAddonUpdateAvailable = false;
     HassMessage = await GetHassMessage();
+
+    // Get Hacs Updates once at statup
+    var hacs = new NumericEntity<HacsAttributes>(mHaContext, "sensor.hacs");
+    HacsMessage = GetHacsMessage(hacs.EntityState);
   }
 
   public NotifyOnUpdateApp(IHaContext ha, INetDaemonScheduler scheduler,
@@ -105,7 +109,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     mServiceDataId = config.Value.NotifyId ?? "updates_available";
     var updateTime = config.Value.UpdateTimeInSec ?? 30;
 
-    // Get Home Assistant Updates
+    // Get Home Assistant Updates cyclic
     try
     {
       scheduler.RunEvery(TimeSpan.FromSeconds(updateTime), async() =>
@@ -120,23 +124,29 @@ public class NotifyOnUpdateApp : IAsyncInitializable
       mLogger.LogError("Exception caught.", e);
     }
 
-    // Get HACS Updates
-    var hacs = new NumericEntity<HacsAttributes>(ha, "sensor.hacs");
+    // Get Hacs Updates on state change
+    var hacs = new NumericEntity<HacsAttributes>(mHaContext, "sensor.hacs");
     hacs.StateAllChanges().Subscribe(s =>
       {
-        var message = String.Empty;
-        var hacsState = s.New?.State;
-        var hacsRepos = s.New?.Attributes?.repositories;
-        if (hacsState > 0 && (hacsRepos?.Any() ?? false))
-        {
-          message += "\n\n[HACS](/hacs)\n\n";
-          foreach (var repo in hacsRepos)
-          {
-            message += $"* **{repo.display_name?.ToString()}**: {repo.installed_version?.ToString()} \u27A1 {repo.available_version?.ToString()}\n";
-          }
-        }
-        HacsMessage = message;
+        HacsMessage = GetHacsMessage(s.New);
       });
+  }
+
+  private string GetHacsMessage(NumericEntityState<HacsAttributes>? hacs)
+  {
+    var message = String.Empty;
+    var hacsState = hacs?.State;
+    var hacsRepos = hacs?.Attributes?.repositories;
+    if (hacsState > 0 && (hacsRepos?.Any() ?? false))
+    {
+      message += "\n\n[HACS](/hacs)\n\n";
+      foreach (var repo in hacsRepos)
+      {
+        message += $"* **{repo.display_name?.ToString()}**: {repo.installed_version?.ToString()} \u27A1 {repo.available_version?.ToString()}\n";
+      }
+    }
+
+    return message;
   }
 
   private async Task<string> GetHassMessage()
@@ -150,7 +160,8 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   }
 
   /// <summary>
-  /// Sends a CURL (HTTP GET Request) message to get the current and actual versions from Home Assistant and its Addons
+  /// Sends a CURL (HTTP GET Request) message to get the current and actual
+  /// versions from Home Assistant and its Addons
   /// </summary>
   private async Task<string> GetVersionByCurl(string versionType)
   {
