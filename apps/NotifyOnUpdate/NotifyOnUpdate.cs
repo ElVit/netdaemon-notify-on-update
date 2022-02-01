@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using NetDaemon.AppModel;
 using NetDaemon.Extensions.Scheduler;
-using NetDaemon.HassModel.Common;
+using NetDaemon.HassModel;
 using NetDaemon.HassModel.Entities;
 
 // Use unique namespaces for your apps if you going to share with others to avoid conflicting names
