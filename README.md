@@ -12,7 +12,14 @@ This App will display updates for:
 - Home Assistant Addon
 - HACS Repository
   
-  
+### Installation
+1. Install the [NetDaemon v3](https://netdaemon.xyz/docs/v3/started/installation) Addon
+2. Install [HACS](https://hacs.xyz/docs/setup/download)
+2. Go to HACS -> Automation -> Add repository -> Search for "Notify on Update"
+3. Download this repository with HACS
+4. Restart the NetDaemon v3 Addon
+
+### Configuration  
 There are 3 Options available to modify this App:  
 - UpdateTimeInSec
   - Default Value: 30
