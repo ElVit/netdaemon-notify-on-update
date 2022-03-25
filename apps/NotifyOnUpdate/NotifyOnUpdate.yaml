@@ -2,3 +2,6 @@ NotifyOnUpdate.NotifyOnUpdateConfig:
   UpdateTimeInSec: 60
   NotifyTitle: 🎉 Updates available 🎉
   NotifyId: updates_available
+  PersistentNotification: true
+  MobileNotifyServices:
+    - notify.mobile_app_myphone
