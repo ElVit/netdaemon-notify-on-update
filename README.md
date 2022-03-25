@@ -20,7 +20,7 @@ This App will display updates for:
 4. Restart the NetDaemon v3 Addon
 
 ### Configuration  
-There are 3 Options available to modify this App:  
+There are 5 options available to modify this app:  
 - UpdateTimeInSec
   - default: 30
   - description: Defines the update time in seconds to search for new updates
@@ -35,7 +35,7 @@ There are 3 Options available to modify this App:
   - description: The persistent notification may be disabled if only mobile notifications are preferred
 - MobileNotifyServices:
   - default: none
-  - description: The user may define a list of notify services for mobile apps like ios or android [companion app](https://companion.home-assistant.io/).
+  - description: The user may define a list of notify services for mobile apps like the ios or android [companion app](https://companion.home-assistant.io/).
                  If the notify service is valid then a notify message will be sent to your mobile device as soon there is an update available.
                  The notify service my be definded like "notify.mobile_app_myphone" or just "mobile_app_myphone".
   
