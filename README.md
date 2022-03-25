@@ -22,23 +22,24 @@ This App will display updates for:
 
 ### Configuration  
 There are 5 options available to modify this app:  
-- UpdateTimeInSec
-  - default: 30
-  - description: Defines the update time in seconds to search for new updates
-- NotifyTitle:
-  - default: Update available in Home Assistant
-  - description: Defines the title of the persistent notification
-- NotifyId:
-  - default: updates_available
-  - description: Defines the id of the persistent notification
-- PersistentNotification:
-  - default: true
-  - description: The persistent notification may be disabled if only mobile notifications are preferred
-- MobileNotifyServices:
-  - default: none
-  - description: The user may define a list of notify services for mobile apps like the ios or android [companion app](https://companion.home-assistant.io/).
-                 If the notify service is valid then a notify message will be sent to your mobile device as soon as there is an update available.
-                 The notify service my be definded like "notify.mobile_app_myphone" or just "mobile_app_myphone".
+- UpdateTimeInSec  
+  - default: 30  
+  - description: Defines the update time in seconds to search for new updates.  
+                 This time does not apply to HACS repository updates because they are taken instantly from the "sensor.hacs" entity.  
+- NotifyTitle:  
+  - default: Update available in Home Assistant  
+  - description: Defines the title of the persistent notification  
+- NotifyId:  
+  - default: updates_available  
+  - description: Defines the id of the persistent notification  
+- PersistentNotification:  
+  - default: true  
+  - description: The persistent notification may be disabled if only mobile notifications are preferred  
+- MobileNotifyServices:  
+  - default: none  
+  - description: The user may define a list of notify services for mobile apps like the ios or android [companion app](https://companion.home-assistant.io/).  
+                 If the notify service is valid then a notify message will be sent to your mobile device as soon as there is an update available.  
+                 The notify service my be definded like "notify.mobile_app_myphone" or just "mobile_app_myphone".  
   
 This App was build with help of this Home Assistant Community Thread:  
-https://community.home-assistant.io/t/update-notifications-core-hacs-supervisor-and-addons/182295
+https://community.home-assistant.io/t/update-notifications-core-hacs-supervisor-and-addons/182295  
