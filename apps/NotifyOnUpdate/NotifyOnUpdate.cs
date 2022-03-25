@@ -308,7 +308,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     if (addonUpdates.Any())
     {
       persistentMessage += $"\n\n[Add-ons](/config/dashboard)\n\n";
-      companionMessage += "\nAdd-ons\n";
+      companionMessage += "Add-ons\n";
       foreach(var update in addonUpdates)
       {
         persistentMessage += $"* [**{update.Name}**]({update.Path}): {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
@@ -318,7 +318,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     if (HacsUpdates.Any())
     {
       persistentMessage += "\n\n[HACS](/hacs)\n\n";
-      companionMessage += "\nHACS\n";
+      companionMessage += "HACS\n";
       foreach(var update in HacsUpdates)
       {
         persistentMessage += $"* **{update.Name}**: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
