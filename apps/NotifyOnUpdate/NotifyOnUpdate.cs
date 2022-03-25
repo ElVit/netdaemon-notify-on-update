@@ -137,7 +137,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     var hacs = new NumericEntity<HacsAttributes>(mHaContext, "sensor.hacs");
     hacs.StateAllChanges().Subscribe(s =>
       {
-        HacsUpdates = GetHacsUpdates();
+        HacsUpdates = GetHacsUpdates(s.New);
       });
   }
 
@@ -169,7 +169,6 @@ public class NotifyOnUpdateApp : IAsyncInitializable
         mLogger.LogInformation($"- Service '{service}' is NOT available");
       }
     }
-    mLogger.LogInformation($"{availableServices.Count()} notify service(s) available.");
 
     return availableServices;
   }
@@ -187,10 +186,13 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   /// <summary>
   /// Get HACS update informations from the hacs sensor
   /// </summary>
-  private IEnumerable<UpdateText> GetHacsUpdates()
+  private IEnumerable<UpdateText> GetHacsUpdates(NumericEntityState<HacsAttributes>? hacs = null)
   {
     var updates = new List<UpdateText>();
-    var hacs = new NumericEntity<HacsAttributes>(mHaContext, "sensor.hacs").EntityState;
+    if (hacs == null)
+    {
+      hacs = new NumericEntity<HacsAttributes>(mHaContext, "sensor.hacs").EntityState;
+    }
     var hacsState = hacs?.State;
     var hacsRepos = hacs?.Attributes?.repositories;
 
