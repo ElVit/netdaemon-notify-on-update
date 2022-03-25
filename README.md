@@ -2,15 +2,16 @@
 [![netdaemon_badge](https://img.shields.io/badge/NetDaemon-v3-pink)](https://netdaemon.xyz/docs/v3)
 
 # Update Notifications
-A NetDaemon App that will create a persistent notification in Home Assistant if there is an update available.  
+A NetDaemon App that will notify you if there is an update available in Home Assistant.  
+This notification may be sent as an persistent notification or to your mobile devices if you are using the [companion app](https://companion.home-assistant.io/).  
   
   
 This App will display updates for:  
 - Home Assistant Core
 - Home Assistant OS
 - Home Assistant Supervisor
-- Home Assistant Addon
-- HACS Repository
+- Home Assistant Addon's
+- HACS Repositories
   
 ### Installation
 1. Install the [NetDaemon v3](https://netdaemon.xyz/docs/v3/started/installation) Addon
@@ -36,7 +37,7 @@ There are 5 options available to modify this app:
 - MobileNotifyServices:
   - default: none
   - description: The user may define a list of notify services for mobile apps like the ios or android [companion app](https://companion.home-assistant.io/).
-                 If the notify service is valid then a notify message will be sent to your mobile device as soon there is an update available.
+                 If the notify service is valid then a notify message will be sent to your mobile device as soon as there is an update available.
                  The notify service my be definded like "notify.mobile_app_myphone" or just "mobile_app_myphone".
   
 This App was build with help of this Home Assistant Community Thread:  
