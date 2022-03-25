@@ -28,16 +28,16 @@ There are 5 options available to modify this app:
                  This time does not apply to HACS repository updates because they are taken instantly from the "sensor.hacs" entity.  
 - NotifyTitle:  
   - default: Update available in Home Assistant  
-  - description: Defines the title of the persistent notification  
+  - description: Defines the title of the notification  
 - NotifyId:  
   - default: updates_available  
-  - description: Defines the id of the persistent notification  
+  - description: Defines the id of the notification so it can be updated  
 - PersistentNotification:  
   - default: true  
   - description: The persistent notification may be disabled if only mobile notifications are preferred  
 - MobileNotifyServices:  
   - default: none  
-  - description: The user may define a list of notify services for mobile apps like the ios or android [companion app](https://companion.home-assistant.io/).  
+  - description: A list of notify services for mobile apps like the ios or android [companion app](https://companion.home-assistant.io/).  
                  If the notify service is valid then a notify message will be sent to your mobile device as soon as there is an update available.  
                  The notify service my be definded like "notify.mobile_app_myphone" or just "mobile_app_myphone".  
   
