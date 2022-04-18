@@ -15,10 +15,11 @@ This App will display updates for:
   
 ### Installation
 1. Install the [NetDaemon v3](https://netdaemon.xyz/docs/v3/started/installation) Addon
-2. Install [HACS](https://hacs.xyz/docs/setup/download)
-2. Go to HACS -> Automation -> Add repository -> Search for "Notify on Update"
-3. Download this repository with HACS
-4. Restart the NetDaemon v3 Addon
+2. Change the addon option "app_config_folder" to "/config/netdaemon"
+3. Install [HACS](https://hacs.xyz/docs/setup/download)
+4. Go to HACS -> Automation -> Add repository -> Search for "Notify on Update"
+5. Download this repository with HACS
+6. Restart the NetDaemon v3 Addon
 
 ### Configuration  
 There are 5 options available to modify this app:  
