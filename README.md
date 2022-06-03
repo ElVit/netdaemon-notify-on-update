@@ -67,3 +67,5 @@ The notify service may be definded like "notify.mobile_app_myphone" or just "mob
 ## Contribution
 This App was developed with help of this Home Assistant Community Thread:  
 https://community.home-assistant.io/t/update-notifications-core-hacs-supervisor-and-addons/182295  
+
+Also a special thanks to [FrankBakkerNl](https://github.com/FrankBakkerNl) and [helto4real](https://github.com/helto4real) for their support during development via [discord](https://discord.gg/K3xwfcX).
