@@ -30,6 +30,11 @@ NotifyOnUpdate.NotifyOnUpdateConfig:
   NotifyTitle: 🎉 Updates available 🎉
   NotifyId: updates_available
   PersistentNotification: true
+  GetUpdatesFor:
+    - Core
+    - OS
+    - Supervisor
+    - HACS
   MobileNotifyServices:
     - notify.mobile_app_myphone
 ```
