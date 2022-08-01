@@ -106,26 +106,26 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     // Check options against empty/invalid values and set a default value if true
     if (String.IsNullOrEmpty(config.Value.NotifyTitle))
     {
-      mLogger.LogWarning("Default value 'Updates pending in Home Assistant' is used for NotifyTitle.");
+      mLogger.LogWarning("Default value 'Updates pending in Home Assistant' is used for Option 'NotifyTitle'.");
       mServiceDataTitle = "Updates pending in Home Assistant";
     }
     if (String.IsNullOrEmpty(config.Value.NotifyId))
     {
-      mLogger.LogWarning("Default value 'updates_available' is used for NotifyId.");
+      mLogger.LogWarning("Default value 'updates_available' is used for Option 'NotifyId'.");
       mServiceDataId = "updates_available";
     }
     if (config.Value.PersistentNotification == null)
     {
-      mLogger.LogWarning("Default value 'true' is used for PersistentNotification.");
-    }
-    if (config.Value.UpdateTimeInSec == null || config.Value.UpdateTimeInSec <= 0)
-    {
-      mLogger.LogWarning("Default value '30' is used for UpdateTimeInSec.");
+      mLogger.LogWarning("Default value 'true' is used for Option 'PersistentNotification'.");
     }
     if (config.Value.GetUpdatesFor == null || !config.Value.GetUpdatesFor.Any())
     {
-      mLogger.LogWarning("Default values 'Core, OS, Supervisor, HACS' are used for GetUpdatesFor.");
+      mLogger.LogWarning("Default values 'Core, OS, Supervisor, HACS' are used for Option 'GetUpdatesFor'.");
       mGetUpdatesFor = new List<string>() { "Core", "OS", "Supervisor", "HACS" };
+    }
+    if (config.Value.UpdateTimeInSec == null || config.Value.UpdateTimeInSec <= 0)
+    {
+      mLogger.LogWarning("Default value '30' is used for Option 'UpdateTimeInSec'.");
     }
 
     // Get Home Assistant Updates cyclic
