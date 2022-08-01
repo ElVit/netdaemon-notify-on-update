@@ -3,5 +3,7 @@ NotifyOnUpdate.NotifyOnUpdateConfig:
   NotifyTitle: 🎉 Updates available 🎉
   NotifyId: updates_available
   PersistentNotification: true
+  ShowiOSBadge: true
+  MechanismToGetUpdates: update_entities
   MobileNotifyServices:
     - notify.mobile_app_myphone
