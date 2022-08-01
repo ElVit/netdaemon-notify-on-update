@@ -3,9 +3,9 @@
 
 # Update Notifications
 A NetDaemon App that will notify you if there is an update available in Home Assistant.  
-This notification may be sent as a persistent notification or to your mobile devices if you are using the [companion app](https://companion.home-assistant.io/).  
+This notification can be sent as a persistent notification or to your mobile devices if you are using the [companion app](https://companion.home-assistant.io/).  
 
-This App will display updates for:  
+This App can display updates for:  
 - Home Assistant Core
 - Home Assistant OS
 - Home Assistant Supervisor
@@ -54,14 +54,22 @@ Defines the id of the notification so it can be updated.
 
 ### Option: `PersistentNotification`
 
-The persistent notification may be disabled if only mobile notifications are preferred.  
+The persistent notification can be disabled if only mobile notifications are preferred.  
 *Default:* `true`  
+
+### Option: `GetUpdatesFor`
+
+Here you can define a list of update types to be displayed when a new update is available.  
+Possible update types are: &nbsp; `Core, OS, Supervisor and HACS`.  
+*Default:* `(all possible types, see above)`  
+
+__NOTE:__ If the `Supervisor` updates are disabled then you will also NOT be notified about any Home Assistant addon updates.  
 
 ### Option: `MobileNotifyServices`
 
-Description: A list of notify services for mobile apps like the iOS or Android [companion app](https://companion.home-assistant.io/).  
+A list of notify services for mobile apps like the iOS or Android [companion app](https://companion.home-assistant.io/).  
 If the notify service is valid then a notify message will be sent to your mobile device as soon as there is an update available.  
-The notify service may be definded like "notify.mobile_app_myphone" or just "mobile_app_myphone".  
+The notify service can be definded like "notify.mobile_app_myphone" or just "mobile_app_myphone".  
 *Default:* `none`  
 
 ## Contribution

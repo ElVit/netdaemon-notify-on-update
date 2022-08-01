@@ -24,6 +24,7 @@ public class NotifyOnUpdateConfig
   public string? NotifyTitle { get; set; }
   public string? NotifyId { get; set; }
   public bool? PersistentNotification { get; set; }
+  public IEnumerable<string>? GetUpdatesFor { get; set; }
   public IEnumerable<string>? MobileNotifyServices { get; set; }
 }
 
@@ -40,6 +41,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   private string mServiceDataTitle;
   private string mServiceDataId;
   private bool mPersistentNotification;
+  private IEnumerable<string> mGetUpdatesFor;
   private IEnumerable<string> mMobileNotifyServices;
   private IEnumerable<UpdateText> mHassUpdates = new List<UpdateText>();
   private IEnumerable<UpdateText> mHacsUpdates = new List<UpdateText>();
@@ -52,7 +54,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
       if (value != null && (!IsEqual(mHassUpdates, value)))
       {
         mHassUpdates = value;
-        mLogger.LogInformation("Supervisor update list changed.");
+        mLogger.LogInformation("Home Assistant update list changed.");
         SetPersistentNotification();
       }
     }
@@ -97,6 +99,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     mServiceDataTitle = config.Value.NotifyTitle ?? "Updates pending in Home Assistant";
     mServiceDataId = config.Value.NotifyId ?? "updates_available";
     mPersistentNotification = config.Value.PersistentNotification ?? true;
+    mGetUpdatesFor = config.Value.GetUpdatesFor ?? new List<string>();
     mMobileNotifyServices = config.Value.MobileNotifyServices ?? new List<string>();
     var updateTime = config.Value.UpdateTimeInSec ?? 30;
 
@@ -189,6 +192,8 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   private IEnumerable<UpdateText> GetHacsUpdates(NumericEntityState<HacsAttributes>? hacs = null)
   {
     var updates = new List<UpdateText>();
+    if (!mGetUpdatesFor.Contains("HACS")) return updates;
+
     if (hacs == null)
     {
       hacs = new NumericEntity<HacsAttributes>(mHaContext, "sensor.hacs").EntityState;
@@ -213,9 +218,9 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   private async Task<IEnumerable<UpdateText>> GetHassUpdates()
   {
     var updates = new List<UpdateText>();
-    updates.AddRange(await GetVersionsByCurl("Core"));
-    updates.AddRange(await GetVersionsByCurl("OS"));
-    updates.AddRange(await GetVersionsByCurl("Supervisor"));
+    if (mGetUpdatesFor.Contains("Core")) updates.AddRange(await GetVersionsByCurl("Core"));
+    if (mGetUpdatesFor.Contains("OS")) updates.AddRange(await GetVersionsByCurl("OS"));
+    if (mGetUpdatesFor.Contains("Supervisor")) updates.AddRange(await GetVersionsByCurl("Supervisor"));
 
     return updates;
   }
