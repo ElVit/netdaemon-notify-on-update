@@ -122,6 +122,11 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     {
       mLogger.LogWarning("Default value '30' is used for UpdateTimeInSec.");
     }
+    if (config.Value.GetUpdatesFor == null || !config.Value.GetUpdatesFor.Any())
+    {
+      mLogger.LogWarning("Default values 'Core, OS, Supervisor, HACS' are used for GetUpdatesFor.");
+      mGetUpdatesFor = new List<string>() { "Core", "OS", "Supervisor", "HACS" };
+    }
 
     // Get Home Assistant Updates cyclic
     try
