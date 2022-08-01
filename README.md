@@ -66,7 +66,7 @@ The persistent notification can be disabled if only mobile notifications are pre
 
 Here you can define a list of update types to be displayed when a new update is available.  
 Possible update types are: &nbsp; `Core, OS, Supervisor and HACS`.  
-*Default:* `(all possible types, see above)`  
+*Default:* `none`  
 
 __NOTE:__ If the `Supervisor` updates are disabled then you will also NOT be notified about any Home Assistant addon updates.  
 
