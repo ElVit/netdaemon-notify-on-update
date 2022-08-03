@@ -24,6 +24,7 @@ public class NotifyOnUpdateConfig
   public string? NotifyTitle { get; set; }
   public string? NotifyId { get; set; }
   public bool? PersistentNotification { get; set; }
+  public bool? ShowiOSBadge { get; set; }
   public IEnumerable<string>? GetUpdatesFor { get; set; }
   public IEnumerable<string>? MobileNotifyServices { get; set; }
 }
@@ -41,6 +42,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   private string mServiceDataTitle;
   private string mServiceDataId;
   private bool mPersistentNotification;
+  private bool mShowiOSBadge;
   private IEnumerable<string> mGetUpdatesFor;
   private IEnumerable<string> mMobileNotifyServices;
   private IEnumerable<UpdateText> mHassUpdates = new List<UpdateText>();
@@ -99,6 +101,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     mServiceDataTitle = config.Value.NotifyTitle ?? "Updates pending in Home Assistant";
     mServiceDataId = config.Value.NotifyId ?? "updates_available";
     mPersistentNotification = config.Value.PersistentNotification ?? true;
+    mShowiOSBadge = config.Value.ShowiOSBadge ?? true;
     mGetUpdatesFor = config.Value.GetUpdatesFor ?? new List<string>();
     mMobileNotifyServices = config.Value.MobileNotifyServices ?? new List<string>();
     var updateTime = config.Value.UpdateTimeInSec ?? 30;
@@ -106,26 +109,30 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     // Check options against empty/invalid values and set a default value if true
     if (String.IsNullOrEmpty(config.Value.NotifyTitle))
     {
-      mLogger.LogWarning("Default value 'Updates pending in Home Assistant' is used for Option 'NotifyTitle'.");
+      mLogger.LogWarning("Option 'NotifyTitle' not found. Default value 'Updates pending in Home Assistant' is used.");
       mServiceDataTitle = "Updates pending in Home Assistant";
     }
     if (String.IsNullOrEmpty(config.Value.NotifyId))
     {
-      mLogger.LogWarning("Default value 'updates_available' is used for Option 'NotifyId'.");
+      mLogger.LogWarning("Option 'NotifyId' not found. Default value 'updates_available' is used.");
       mServiceDataId = "updates_available";
     }
     if (config.Value.PersistentNotification == null)
     {
-      mLogger.LogWarning("Default value 'true' is used for Option 'PersistentNotification'.");
+      mLogger.LogWarning("Option 'PersistentNotification' not found. Default value 'true' is used.");
+    }
+    if (config.Value.ShowiOSBadge == null)
+    {
+      mLogger.LogWarning("Option 'ShowiOSBadge' not found. Default value 'true' is used.");
     }
     if (config.Value.GetUpdatesFor == null || !config.Value.GetUpdatesFor.Any())
     {
-      mLogger.LogWarning("Default values 'Core, OS, Supervisor, HACS' are used for Option 'GetUpdatesFor'.");
+      mLogger.LogWarning("Option 'GetUpdatesFor' not found. Default values 'Core, OS, Supervisor, HACS' are used.");
       mGetUpdatesFor = new List<string>() { "Core", "OS", "Supervisor", "HACS" };
     }
     if (config.Value.UpdateTimeInSec == null || config.Value.UpdateTimeInSec <= 0)
     {
-      mLogger.LogWarning("Default value '30' is used for Option 'UpdateTimeInSec'.");
+      mLogger.LogWarning("Option 'UpdateTimeInSec' not found. Default value '30' is used.");
     }
 
     // Get Home Assistant Updates cyclic
@@ -304,6 +311,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     var companionMessage = String.Empty;
     var hassUpdates = HassUpdates.Where(x => x.Type == UpdateType.HomeAssistant);
     var addonUpdates = HassUpdates.Where(x => x.Type == UpdateType.Addon);
+    var badgeCounter = 0;
 
     if (hassUpdates.Any())
     {
@@ -313,6 +321,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
       {
         persistentMessage += $"* **{update.Name}**: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
         companionMessage += $"- {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
+        badgeCounter++;
       }
     }
     if (addonUpdates.Any())
@@ -323,6 +332,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
       {
         persistentMessage += $"* [**{update.Name}**]({update.Path}): {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
         companionMessage += $"- {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
+        badgeCounter++;
       }
     }
     if (HacsUpdates.Any())
@@ -333,6 +343,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
       {
         persistentMessage += $"* **{update.Name}**: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
         companionMessage += $"- {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
+        badgeCounter++;
       }
     }
 
@@ -377,6 +388,21 @@ public class NotifyOnUpdateApp : IAsyncInitializable
             }
           }
         });
+
+        if (mShowiOSBadge)
+        {
+          mHaContext.CallService("notify", notifyService, data: new
+            {
+              message = "delete_alert",
+              data = new
+              {
+                push = new
+                {
+                  badge = badgeCounter
+                }
+              }
+            });
+        }
       }
     }
     else
@@ -400,6 +426,21 @@ public class NotifyOnUpdateApp : IAsyncInitializable
             tag = mServiceDataId
           }
         });
+
+        if (mShowiOSBadge)
+        {
+          mHaContext.CallService("notify", notifyService, data: new
+            {
+              message = "delete_alert",
+              data = new
+              {
+                push = new
+                {
+                  badge = 0
+                }
+              }
+            });
+        }
       }
     }
   }
