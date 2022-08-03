@@ -30,6 +30,7 @@ NotifyOnUpdate.NotifyOnUpdateConfig:
   NotifyTitle: 🎉 Updates available 🎉
   NotifyId: updates_available
   PersistentNotification: true
+  ShowiOSBadge: true
   GetUpdatesFor:
     - Core
     - OS
@@ -60,6 +61,11 @@ Defines the id of the notification so it can be updated.
 ### Option: `PersistentNotification`
 
 The persistent notification can be disabled if only mobile notifications are preferred.  
+*Default:* `true`  
+
+### Option: `ShowiOSBadge`
+
+If set to `true` you will see the count of updates in the app icon badge of the iOS [companion app](https://companion.home-assistant.io/).  
 *Default:* `true`  
 
 ### Option: `GetUpdatesFor`
