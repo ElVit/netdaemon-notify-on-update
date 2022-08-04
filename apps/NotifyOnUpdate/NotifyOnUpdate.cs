@@ -86,6 +86,12 @@ public class NotifyOnUpdateApp : IAsyncInitializable
 
     // Get Hacs Updates once at statup
     HacsUpdates = GetHacsUpdates();
+
+    // Remove old notifications or app badge if there are no updates available
+    if (!HacsUpdates.Any() || !HassUpdates.Any())
+    {
+      SetPersistentNotification();
+    }
   }
 
   public NotifyOnUpdateApp(IHaContext ha, INetDaemonScheduler scheduler,
