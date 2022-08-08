@@ -25,7 +25,7 @@ public class NotifyOnUpdateConfig
   public string? NotifyId { get; set; }
   public bool? PersistentNotification { get; set; }
   public bool? ShowiOSBadge { get; set; }
-  public string? MechanismToGetUpdates { get; set; }
+  public string? GetUpdatesMechanism { get; set; }
   public IEnumerable<string>? GetUpdatesFor { get; set; }
   public IEnumerable<string>? MobileNotifyServices { get; set; }
 }
@@ -44,7 +44,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   private string mServiceDataId;
   private bool mPersistentNotification;
   private bool mShowiOSBadge;
-  private UpdateMechanism mMechanismToGetUpdates;
+  private UpdateMechanism mGetUpdatesMechanism;
   private IEnumerable<string> mGetUpdatesFor;
   private IEnumerable<string> mMobileNotifyServices;
   private IEnumerable<UpdateText> mHassUpdates = new List<UpdateText>();
@@ -98,7 +98,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     // Check if user defined notify services are valid
     mMobileNotifyServices = await GetServicesOfType("notify", mMobileNotifyServices);
 
-    if (mMechanismToGetUpdates == UpdateMechanism.UpdateEntities)
+    if (mGetUpdatesMechanism == UpdateMechanism.UpdateEntities)
     {
       var updateEntities = mHaContext.GetAllEntities().Where(entity => entity.EntityId.StartsWith("update."));
       var updateList = new List<UpdateText>();
@@ -110,7 +110,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
       }
       EntityUpdates = updateList;
     }
-    else if (mMechanismToGetUpdates == UpdateMechanism.RestAPI)
+    else if (mGetUpdatesMechanism == UpdateMechanism.RestAPI)
     {
       // Get Home Assistant Updates once at startup;
       HassUpdates = await GetHassUpdates();
@@ -144,16 +144,16 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     mMobileNotifyServices = config.Value.MobileNotifyServices ?? new List<string>();
     var updateTime = config.Value.UpdateTimeInSec ?? 30;
 
-    switch (config.Value.MechanismToGetUpdates)
+    switch (config.Value.GetUpdatesMechanism)
     {
       case "rest_api":
-        mMechanismToGetUpdates = UpdateMechanism.RestAPI;
+        mGetUpdatesMechanism = UpdateMechanism.RestAPI;
         break;
       case "update_entities":
-        mMechanismToGetUpdates = UpdateMechanism.UpdateEntities;
+        mGetUpdatesMechanism = UpdateMechanism.UpdateEntities;
         break;
       default:
-        mMechanismToGetUpdates = UpdateMechanism.RestAPI;
+        mGetUpdatesMechanism = UpdateMechanism.RestAPI;
         break;
     }
 
@@ -176,7 +176,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     {
       mLogger.LogWarning("Option 'ShowiOSBadge' not found. Default value 'true' is used.");
     }
-    if (mMechanismToGetUpdates == UpdateMechanism.RestAPI)
+    if (mGetUpdatesMechanism == UpdateMechanism.RestAPI)
     {
       if (config.Value.GetUpdatesFor == null || !config.Value.GetUpdatesFor.Any())
       {
@@ -189,7 +189,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
       mLogger.LogWarning("Option 'UpdateTimeInSec' not found. Default value '30' is used.");
     }
 
-    if (mMechanismToGetUpdates == UpdateMechanism.UpdateEntities)
+    if (mGetUpdatesMechanism == UpdateMechanism.UpdateEntities)
     {
       var updateEntities = mHaContext.GetAllEntities().Where(entity => entity.EntityId.StartsWith("update."));
       foreach (var entity in updateEntities)
@@ -205,7 +205,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
           });
       }
     }
-    else if (mMechanismToGetUpdates == UpdateMechanism.RestAPI)
+    else if (mGetUpdatesMechanism == UpdateMechanism.RestAPI)
     {
       // Get Home Assistant Updates cyclic
       try

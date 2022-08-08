@@ -31,6 +31,7 @@ NotifyOnUpdate.NotifyOnUpdateConfig:
   NotifyId: updates_available
   PersistentNotification: true
   ShowiOSBadge: true
+  GetUpdatesMechanism: rest_api
   GetUpdatesFor:
     - Core
     - OS
@@ -46,33 +47,45 @@ NotifyOnUpdate.NotifyOnUpdateConfig:
 
 Defines the update time in seconds to search for new updates.  
 This time does not apply to HACS repository updates because they are taken instantly from the "sensor.hacs" entity.  
-*Default:* `30`
+*Default value:* &nbsp;&nbsp;&nbsp; `30`
 
 ### Option: `NotifyTitle`
 
 Defines the title of the notification.  
-*Default:* `Update available in Home Assistant`
+*Default value:* &nbsp;&nbsp;&nbsp; `Update available in Home Assistant`
 
 ### Option: `NotifyId`
 
 Defines the id of the notification so it can be updated.  
-*Default:* `updates_available`  
+*Default value:* &nbsp;&nbsp;&nbsp; `updates_available`  
 
 ### Option: `PersistentNotification`
 
 The persistent notification can be disabled if only mobile notifications are preferred.  
-*Default:* `true`  
+*Default value:* &nbsp;&nbsp;&nbsp; `true`  
 
 ### Option: `ShowiOSBadge`
 
 If set to `true` you will see the count of updates in the app icon badge of the iOS [companion app](https://companion.home-assistant.io/).  
-*Default:* `true`  
+*Default value:* &nbsp;&nbsp;&nbsp; `true`  
+
+### Option: `GetUpdatesMechanism`
+
+Home Assistant 2022.4 introduced a new feature called [update entity](https://www.home-assistant.io/integrations/update/).  
+To use this feature just set this option to `update_entities`.  
+At the moment (08.08.2022) HACS does not support the update entities feature officially.  
+But you can enable the update entities also for HACS by activating the [experimental features](https://hacs.xyz/docs/configuration/options) in HACS.  
+To use the old mechanism set this option to `rest_api`.  
+*Possible values:* &nbsp; `update_entities, rest_api`.  
+*Default value:* &nbsp;&nbsp;&nbsp; `rest_api`  
+
+__NOTE:__ If this option is set to `update_entities` then the option `GetUpdatesFor` will have no effect.  
 
 ### Option: `GetUpdatesFor`
 
 Here you can define a list of update types to be displayed when a new update is available.  
-Possible update types are: &nbsp; `Core, OS, Supervisor and HACS`.  
-*Default:* `(all possible types, see above)`  
+*Possible values:* &nbsp; `Core, OS, Supervisor and HACS`.  
+*Default value:* &nbsp;&nbsp;&nbsp; `(all possible types, see above)`  
 
 __NOTE:__ If the `Supervisor` updates are disabled then you will also NOT be notified about any Home Assistant addon updates.  
 
@@ -81,7 +94,7 @@ __NOTE:__ If the `Supervisor` updates are disabled then you will also NOT be not
 A list of notify services for mobile apps like the iOS or Android [companion app](https://companion.home-assistant.io/).  
 If the notify service is valid then a notify message will be sent to your mobile device as soon as there is an update available.  
 The notify service can be definded like "notify.mobile_app_myphone" or just "mobile_app_myphone".  
-*Default:* `none`  
+*Default value:* &nbsp;&nbsp;&nbsp; `none`  
 
 ## Contribution
 This App was developed with help of this Home Assistant Community Thread:  
