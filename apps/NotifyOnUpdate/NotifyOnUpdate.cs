@@ -59,7 +59,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
       if (value != null && (!IsEqual(mHassUpdates, value)))
       {
         mHassUpdates = value;
-        mLogger.LogInformation("Supervisor update list changed.");
+        mLogger.LogInformation("Home Assistant update list changed.");
         SetUpdateNotification();
       }
     }
@@ -101,11 +101,14 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     if (mMechanismToGetUpdates == UpdateMechanism.UpdateEntities)
     {
       var updateEntities = mHaContext.GetAllEntities().Where(entity => entity.EntityId.StartsWith("update."));
+      var updateList = new List<UpdateText>();
       foreach (var entity in updateEntities)
       {
         var updateEntity = new Entity<UpdateAttributes>(entity);
-        EntityUpdates = GetEntityUpdates(updateEntity.EntityState);
+        var updateText = GetEntityUpdate(updateEntity.EntityState);
+        if (updateText != null) updateList.Add(updateText);
       }
+      EntityUpdates = updateList;
     }
     else if (mMechanismToGetUpdates == UpdateMechanism.RestAPI)
     {
@@ -114,12 +117,12 @@ public class NotifyOnUpdateApp : IAsyncInitializable
 
       // Get Hacs Updates once at statup
       HacsUpdates = GetHacsUpdates();
+    }
 
-      // Remove old notifications or app badge if there are no updates available
-      if (!HacsUpdates.Any() || !HassUpdates.Any())
-      {
-        SetPersistentNotification();
-      }
+    // Remove old notifications or app badge if there are no updates available
+    if (!HacsUpdates.Any() || !HassUpdates.Any() || !EntityUpdates.Any())
+    {
+      SetUpdateNotification();
     }
   }
 
@@ -173,10 +176,13 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     {
       mLogger.LogWarning("Option 'ShowiOSBadge' not found. Default value 'true' is used.");
     }
-    if (config.Value.GetUpdatesFor == null || !config.Value.GetUpdatesFor.Any())
+    if (mMechanismToGetUpdates == UpdateMechanism.RestAPI)
     {
-      mLogger.LogWarning("Option 'GetUpdatesFor' not found. Default values 'Core, OS, Supervisor, HACS' are used.");
-      mGetUpdatesFor = new List<string>() { "Core", "OS", "Supervisor", "HACS" };
+      if (config.Value.GetUpdatesFor == null || !config.Value.GetUpdatesFor.Any())
+      {
+        mLogger.LogWarning("Option 'GetUpdatesFor' not found. Default values 'Core, OS, Supervisor, HACS' are used.");
+        mGetUpdatesFor = new List<string>() { "Core", "OS", "Supervisor", "HACS" };
+      }
     }
     if (config.Value.UpdateTimeInSec == null || config.Value.UpdateTimeInSec <= 0)
     {
@@ -191,7 +197,11 @@ public class NotifyOnUpdateApp : IAsyncInitializable
         var updateEntity = new Entity<UpdateAttributes>(entity);
         updateEntity.StateAllChanges().Subscribe(state =>
           {
-            EntityUpdates = GetEntityUpdates(state.New);
+            var updateText = GetEntityUpdate(state.New);
+
+            var updateList = EntityUpdates.Where(entity => entity.EntityId != state.New?.EntityId).ToList();
+            if (updateText != null) updateList.Add(updateText);
+            EntityUpdates = updateList;
           });
       }
     }
@@ -261,21 +271,18 @@ public class NotifyOnUpdateApp : IAsyncInitializable
       list2.Select(element => element.Hash).OrderBy(element => element));
   }
 
-  private IEnumerable<UpdateText> GetEntityUpdates(EntityState<UpdateAttributes>? entityState)
+  private UpdateText? GetEntityUpdate(EntityState<UpdateAttributes>? entityState)
   {
-    var updateList = EntityUpdates.Where(entity => entity.EntityId != entityState?.EntityId).ToList();
-    if (entityState?.State == "on")
-    {
-      var update = new UpdateText(UpdateType.Entity);
-      update.Name = entityState?.Attributes?.friendly_name;
-      update.CurrentVersion = entityState?.Attributes?.installed_version;
-      update.NewVersion = entityState?.Attributes?.latest_version;
-      update.EntityId = entityState?.EntityId;
-      update.CalcHash();
-      updateList.Add(update);
-    }
+    if (entityState?.State != "on") return null;
 
-    return updateList;
+    var update = new UpdateText(UpdateType.Entity);
+    update.Name = entityState?.Attributes?.friendly_name;
+    update.CurrentVersion = entityState?.Attributes?.installed_version;
+    update.NewVersion = entityState?.Attributes?.latest_version;
+    update.EntityId = entityState?.EntityId;
+    update.CalcHash();
+
+    return update;
   }
 
   /// <summary>
@@ -283,8 +290,8 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   /// </summary>
   private IEnumerable<UpdateText> GetHacsUpdates(NumericEntityState<HacsAttributes>? hacs = null)
   {
-    var updates = new List<UpdateText>();
-    if (!mGetUpdatesFor.Contains("HACS")) return updates;
+    var updateList = new List<UpdateText>();
+    if (!mGetUpdatesFor.Contains("HACS")) return updateList;
 
     if (hacs == null)
     {
@@ -411,7 +418,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
       foreach (var update in hassUpdates)
       {
         persistentMessage += $"* **{update.Name}**: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        companionMessage += $"- {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
+        companionMessage += $"\u2022 {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
         badgeCounter++;
       }
     }
@@ -422,7 +429,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
       foreach (var update in addonUpdates)
       {
         persistentMessage += $"* [**{update.Name}**]({update.Path}): {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        companionMessage += $"- {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
+        companionMessage += $"\u2022 {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
         badgeCounter++;
       }
     }
@@ -433,18 +440,17 @@ public class NotifyOnUpdateApp : IAsyncInitializable
       foreach(var update in HacsUpdates)
       {
         persistentMessage += $"* **{update.Name}**: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        companionMessage += $"- {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
+        companionMessage += $"\u2022 {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
         badgeCounter++;
       }
     }
     if (EntityUpdates.Any())
     {
-      persistentMessage += "\n\n[Updates](/config/dashboard)\n\n";
-      companionMessage += "Updates\n";
+      persistentMessage += "[Updates](/config/dashboard)\n\n";
       foreach (var update in EntityUpdates)
       {
         persistentMessage += $"* **{update.Name}**: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        companionMessage += $"- {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
+        companionMessage += $"\u2022 {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
         badgeCounter++;
       }
     }
@@ -454,13 +460,12 @@ public class NotifyOnUpdateApp : IAsyncInitializable
       // persistent notification
       if (mPersistentNotification)
       {
-        var notifyData = new
+        mHaContext.CallService("persistent_notification", "create", data: new
           {
             title = mServiceDataTitle,
             message = persistentMessage,
             notification_id = mServiceDataId
-          };
-        mHaContext.CallService("persistent_notification", "create", data: notifyData);
+          });
       }
       // mobile notification
       foreach (var notifyService in mMobileNotifyServices)
@@ -470,26 +475,26 @@ public class NotifyOnUpdateApp : IAsyncInitializable
             title = mServiceDataTitle,
             message = companionMessage,
             data = new
-            {
-              tag = mServiceDataId,
-              url = "/config/dashboard",          // iOS URL
-              clickAction = "/config/dashboard",  // Android URL
-              actions = new List<object>
               {
-                new
+                tag = mServiceDataId,
+                url = "/config/dashboard",          // iOS URL
+                clickAction = "/config/dashboard",  // Android URL
+                actions = new List<object>
                 {
-                  action = "URI",
-                  title = "Open Addons",
-                  uri = "/hassio/dashboard"
-                },
-                new
-                {
-                  action = "URI",
-                  title = "Open HACS",
-                  uri = "/hacs"
-                },
+                  new
+                    {
+                      action = "URI",
+                      title = "Open Addons",
+                      uri = "/hassio/dashboard"
+                    },
+                  new
+                    {
+                      action = "URI",
+                      title = "Open HACS",
+                      uri = "/hacs"
+                    },
+                }
               }
-            }
           });
 
         if (mShowiOSBadge)
@@ -498,12 +503,12 @@ public class NotifyOnUpdateApp : IAsyncInitializable
             {
               message = "delete_alert",
               data = new
-              {
-                push = new
                 {
-                  badge = badgeCounter
+                  push = new
+                    {
+                      badge = badgeCounter
+                    }
                 }
-              }
             });
         }
       }
@@ -538,9 +543,9 @@ public class NotifyOnUpdateApp : IAsyncInitializable
               data = new
                 {
                   push = new
-                  {
-                    badge = 0
-                  }
+                    {
+                      badge = 0
+                    }
                 }
             });
         }
