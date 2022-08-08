@@ -5,5 +5,10 @@ NotifyOnUpdate.NotifyOnUpdateConfig:
   PersistentNotification: true
   ShowiOSBadge: true
   MechanismToGetUpdates: update_entities
+  GetUpdatesFor:
+    - Core
+    - OS
+    - Supervisor
+    - HACS
   MobileNotifyServices:
     - notify.mobile_app_myphone

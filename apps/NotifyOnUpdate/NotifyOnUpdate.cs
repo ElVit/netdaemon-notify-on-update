@@ -26,6 +26,7 @@ public class NotifyOnUpdateConfig
   public bool? PersistentNotification { get; set; }
   public bool? ShowiOSBadge { get; set; }
   public string? MechanismToGetUpdates { get; set; }
+  public IEnumerable<string>? GetUpdatesFor { get; set; }
   public IEnumerable<string>? MobileNotifyServices { get; set; }
 }
 
@@ -44,6 +45,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   private bool mPersistentNotification;
   private bool mShowiOSBadge;
   private UpdateMechanism mMechanismToGetUpdates;
+  private IEnumerable<string> mGetUpdatesFor;
   private IEnumerable<string> mMobileNotifyServices;
   private IEnumerable<UpdateText> mHassUpdates = new List<UpdateText>();
   private IEnumerable<UpdateText> mHacsUpdates = new List<UpdateText>();
@@ -109,8 +111,15 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     {
       // Get Home Assistant Updates once at startup;
       HassUpdates = await GetHassUpdates();
+
       // Get Hacs Updates once at statup
       HacsUpdates = GetHacsUpdates();
+
+      // Remove old notifications or app badge if there are no updates available
+      if (!HacsUpdates.Any() || !HassUpdates.Any())
+      {
+        SetPersistentNotification();
+      }
     }
   }
 
@@ -128,6 +137,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     mServiceDataId = config.Value.NotifyId ?? "updates_available";
     mPersistentNotification = config.Value.PersistentNotification ?? true;
     mShowiOSBadge = config.Value.ShowiOSBadge ?? true;
+    mGetUpdatesFor = config.Value.GetUpdatesFor ?? new List<string>();
     mMobileNotifyServices = config.Value.MobileNotifyServices ?? new List<string>();
     var updateTime = config.Value.UpdateTimeInSec ?? 30;
 
@@ -147,21 +157,30 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     // Check options against empty/invalid values and set a default value if true
     if (String.IsNullOrEmpty(config.Value.NotifyTitle))
     {
-      mLogger.LogWarning("Default value 'Updates pending in Home Assistant' is used for NotifyTitle.");
+      mLogger.LogWarning("Option 'NotifyTitle' not found. Default value 'Updates pending in Home Assistant' is used.");
       mServiceDataTitle = "Updates pending in Home Assistant";
     }
     if (String.IsNullOrEmpty(config.Value.NotifyId))
     {
-      mLogger.LogWarning("Default value 'updates_available' is used for NotifyId.");
+      mLogger.LogWarning("Option 'NotifyId' not found. Default value 'updates_available' is used.");
       mServiceDataId = "updates_available";
     }
     if (config.Value.PersistentNotification == null)
     {
-      mLogger.LogWarning("Default value 'true' is used for PersistentNotification.");
+      mLogger.LogWarning("Option 'PersistentNotification' not found. Default value 'true' is used.");
+    }
+    if (config.Value.ShowiOSBadge == null)
+    {
+      mLogger.LogWarning("Option 'ShowiOSBadge' not found. Default value 'true' is used.");
+    }
+    if (config.Value.GetUpdatesFor == null || !config.Value.GetUpdatesFor.Any())
+    {
+      mLogger.LogWarning("Option 'GetUpdatesFor' not found. Default values 'Core, OS, Supervisor, HACS' are used.");
+      mGetUpdatesFor = new List<string>() { "Core", "OS", "Supervisor", "HACS" };
     }
     if (config.Value.UpdateTimeInSec == null || config.Value.UpdateTimeInSec <= 0)
     {
-      mLogger.LogWarning("Default value '30' is used for UpdateTimeInSec.");
+      mLogger.LogWarning("Option 'UpdateTimeInSec' not found. Default value '30' is used.");
     }
 
     if (mMechanismToGetUpdates == UpdateMechanism.UpdateEntities)
@@ -264,7 +283,9 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   /// </summary>
   private IEnumerable<UpdateText> GetHacsUpdates(NumericEntityState<HacsAttributes>? hacs = null)
   {
-    var updateList = new List<UpdateText>();
+    var updates = new List<UpdateText>();
+    if (!mGetUpdatesFor.Contains("HACS")) return updates;
+
     if (hacs == null)
     {
       hacs = new NumericEntity<HacsAttributes>(mHaContext, "sensor.hacs").EntityState;
@@ -294,9 +315,9 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   private async Task<IEnumerable<UpdateText>> GetHassUpdates()
   {
     var updates = new List<UpdateText>();
-    updates.AddRange(await GetVersionsByCurl("Core"));
-    updates.AddRange(await GetVersionsByCurl("OS"));
-    updates.AddRange(await GetVersionsByCurl("Supervisor"));
+    if (mGetUpdatesFor.Contains("Core")) updates.AddRange(await GetVersionsByCurl("Core"));
+    if (mGetUpdatesFor.Contains("OS")) updates.AddRange(await GetVersionsByCurl("OS"));
+    if (mGetUpdatesFor.Contains("Supervisor")) updates.AddRange(await GetVersionsByCurl("Supervisor"));
 
     return updates;
   }
@@ -504,9 +525,9 @@ public class NotifyOnUpdateApp : IAsyncInitializable
           {
             message = "clear_notification",
             data = new
-            {
-              tag = mServiceDataId
-            }
+              {
+                tag = mServiceDataId
+              }
           });
 
         if (mShowiOSBadge)
@@ -515,12 +536,12 @@ public class NotifyOnUpdateApp : IAsyncInitializable
             {
               message = "delete_alert",
               data = new
-              {
-                push = new
                 {
-                  badge = 0
+                  push = new
+                  {
+                    badge = 0
+                  }
                 }
-              }
             });
         }
       }
