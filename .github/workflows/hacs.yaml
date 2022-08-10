@@ -6,7 +6,6 @@ on:
 
 jobs:
   validate_hacs:
-    name: "HACS Validation"
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout the repository
