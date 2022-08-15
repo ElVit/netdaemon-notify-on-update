@@ -148,12 +148,15 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     {
       case "rest_api":
         mGetUpdatesMechanism = UpdateMechanism.RestAPI;
+        mLogger.LogInformation("REST-API is used to get updates.");
         break;
       case "update_entities":
         mGetUpdatesMechanism = UpdateMechanism.UpdateEntities;
+        mLogger.LogInformation("Update entities are used to get updates.");
         break;
       default:
         mGetUpdatesMechanism = UpdateMechanism.RestAPI;
+        mLogger.LogInformation("REST-API is used to get updates.");
         break;
     }
 
@@ -197,10 +200,12 @@ public class NotifyOnUpdateApp : IAsyncInitializable
         var updateEntity = new Entity<UpdateAttributes>(entity);
         updateEntity.StateAllChanges().Subscribe(state =>
           {
-            var updateText = GetEntityUpdate(state.New);
+            var newUpdateText = GetEntityUpdate(state.New);
+            var oldUpdateText = EntityUpdates.SingleOrDefault(entity => entity.EntityId == state.New?.EntityId);
+            if (oldUpdateText?.Hash == newUpdateText?.Hash) return;
 
             var updateList = EntityUpdates.Where(entity => entity.EntityId != state.New?.EntityId).ToList();
-            if (updateText != null) updateList.Add(updateText);
+            if (newUpdateText != null) updateList.Add(newUpdateText);
             EntityUpdates = updateList;
           });
       }
@@ -276,7 +281,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     if (entityState?.State != "on") return null;
 
     var update = new UpdateText(UpdateType.Entity);
-    update.Name = entityState?.Attributes?.friendly_name;
+    update.Name = entityState?.Attributes?.friendly_name?.Replace(" update", "", true, null);
     update.CurrentVersion = entityState?.Attributes?.installed_version;
     update.NewVersion = entityState?.Attributes?.latest_version;
     update.EntityId = entityState?.EntityId;
@@ -339,7 +344,12 @@ public class NotifyOnUpdateApp : IAsyncInitializable
 
     if (curlData?.update_available ?? false)
     {
-      updateList.Add(new UpdateText(UpdateType.HomeAssistant, versionType, curlData?.version, curlData?.version_latest));
+      var update = new UpdateText(UpdateType.HomeAssistant);
+      update.Name = versionType;
+      update.CurrentVersion = curlData?.version;
+      update.NewVersion = curlData?.version_latest;
+      update.CalcHash();
+      updateList.Add(update);
     }
 
     if (curlData?.addons != null && curlData.addons.Where(addon => addon.update_available != null).Any(addon => addon.update_available == true))
@@ -578,15 +588,6 @@ internal class UpdateText
   {
     Type = type;
   }
-  public UpdateText(UpdateType type, string? name, string? currentVersion, string? newVersion, string? path = null)
-  {
-    Type = type;
-    Name = name;
-    Path = path;
-    CurrentVersion = currentVersion;
-    NewVersion = newVersion;
-    Hash = HashCode.Combine(type, name, path, currentVersion, newVersion);
-  }
 
   public void CalcHash()
   {
@@ -632,15 +633,8 @@ record HacsRepositories
 
 record UpdateAttributes
 {
-  public bool? auto_update { get; init; }
   public string? installed_version { get; init; }
-  public bool? in_progress { get; init; }
   public string? latest_version { get; init; }
-  public string? release_summary { get; init; }
-  public string? release_url { get; init; }
-  public string? skipped_version { get; init; }
   public string? title { get; init; }
-  public string? entity_picture { get; init; }
   public string? friendly_name { get; init; }
-  public int? supported_features { get; init; }
 }
