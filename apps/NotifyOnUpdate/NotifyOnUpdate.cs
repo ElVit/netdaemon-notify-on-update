@@ -31,7 +31,7 @@ public class NotifyOnUpdateConfig
 }
 
 /// <summary>
-/// Creates a persistent notification in Home Assistant if a new Updates is available
+/// Creates a notification in Home Assistant if an update is available
 /// </summary>
 [NetDaemonApp]
 public class NotifyOnUpdateApp : IAsyncInitializable
@@ -204,6 +204,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
 
     if (mGetUpdatesMechanism == UpdateMechanism.UpdateEntities)
     {
+      // Get entity updates on state change
       var updateEntities = mHaContext.GetAllEntities().Where(entity => entity.EntityId.StartsWith("update."));
       foreach (var entity in updateEntities)
       {
@@ -222,7 +223,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     }
     else if (mGetUpdatesMechanism == UpdateMechanism.RestAPI)
     {
-      // Get Home Assistant Updates cyclic
+      // Get Home Assistant updates cyclic
       try
       {
         scheduler.RunEvery(TimeSpan.FromSeconds(updateTime), async() =>
@@ -235,7 +236,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
         mLogger.LogError("Exception caught: ", e);
       }
 
-      // Get Hacs Updates on state change
+      // Get Hacs updates on state change
       var hacs = new NumericEntity<HacsAttributes>(mHaContext, "sensor.hacs");
       hacs.StateAllChanges().Subscribe(state =>
         {
@@ -350,7 +351,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   }
 
   /// <summary>
-  /// Extracts the relevant update informations of a CURL Response Data
+  /// Extracts the relevant update informations of a CURL response data
   /// </summary>
   private async Task<IEnumerable<UpdateText>> GetVersionsByCurl(string versionType)
   {
@@ -390,7 +391,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
 
   /// <summary>
   /// Sends a CURL (HTTP GET Request) message to get the current installed and newest
-  /// available versions of Home Assistant and its Addons
+  /// available versions of Home Assistant and its addons
   /// </summary>
   private async Task<CurlData?> GetCurlData(string versionType)
   {
