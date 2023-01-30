@@ -40,8 +40,8 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   private readonly IHaContext mHaContext;
   private readonly IHomeAssistantConnection mHaConnection;
   private readonly ILogger<NotifyOnUpdateApp> mLogger;
-  private string mServiceDataTitle;
-  private string mServiceDataId;
+  private string mNotifyTitle;
+  private string mNotifyId;
   private bool mPersistentNotification;
   private bool mShowiOSBadge;
   private UpdateMechanism mGetUpdatesMechanism;
@@ -95,11 +95,15 @@ public class NotifyOnUpdateApp : IAsyncInitializable
 
   public async Task InitializeAsync(CancellationToken cancellationToken)
   {
+    mLogger.LogDebug($"*** InitializeAsync started ***");
+
     // Check if user defined notify services are valid
     mMobileNotifyServices = await GetServicesOfType("notify", mMobileNotifyServices);
 
     if (mGetUpdatesMechanism == UpdateMechanism.UpdateEntities)
     {
+      mLogger.LogDebug($"*** UpdateMechanism == UpdateEntities ***");
+
       var updateEntities = mHaContext.GetAllEntities().Where(entity => entity.EntityId.StartsWith("update."));
       var updateList = new List<UpdateText>();
       foreach (var entity in updateEntities)
@@ -112,6 +116,8 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     }
     else if (mGetUpdatesMechanism == UpdateMechanism.RestAPI)
     {
+      mLogger.LogDebug($"*** UpdateMechanism == RestAPI ***");
+
       // Get Home Assistant Updates once at startup;
       HassUpdates = await GetHassUpdates();
 
@@ -124,6 +130,8 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     {
       SetUpdateNotification();
     }
+
+    mLogger.LogDebug($"*** InitializeAsync finished ***");
   }
 
   public NotifyOnUpdateApp(IHaContext ha, INetDaemonScheduler scheduler,
@@ -135,9 +143,11 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     mHaConnection = haConnection;
     mLogger = logger;
 
+    mLogger.LogDebug($"*** Constructor started ***");
+
     // Check options against null and set a default value if true
-    mServiceDataTitle = config.Value.NotifyTitle ?? "Updates pending in Home Assistant";
-    mServiceDataId = config.Value.NotifyId ?? "updates_available";
+    mNotifyTitle = config.Value.NotifyTitle ?? "Updates pending in Home Assistant";
+    mNotifyId = config.Value.NotifyId ?? "updates_available";
     mPersistentNotification = config.Value.PersistentNotification ?? true;
     mShowiOSBadge = config.Value.ShowiOSBadge ?? true;
     mGetUpdatesFor = config.Value.GetUpdatesFor ?? new List<string>();
@@ -164,12 +174,12 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     if (String.IsNullOrEmpty(config.Value.NotifyTitle))
     {
       mLogger.LogWarning("Option 'NotifyTitle' not found. Default value 'Updates pending in Home Assistant' is used.");
-      mServiceDataTitle = "Updates pending in Home Assistant";
+      mNotifyTitle = "Updates pending in Home Assistant";
     }
     if (String.IsNullOrEmpty(config.Value.NotifyId))
     {
       mLogger.LogWarning("Option 'NotifyId' not found. Default value 'updates_available' is used.");
-      mServiceDataId = "updates_available";
+      mNotifyId = "updates_available";
     }
     if (config.Value.PersistentNotification == null)
     {
@@ -232,6 +242,8 @@ public class NotifyOnUpdateApp : IAsyncInitializable
           HacsUpdates = GetHacsUpdates(state.New);
         });
     }
+
+    mLogger.LogDebug($"*** Constructor finished ***");
   }
 
   private async Task<IEnumerable<string>> GetServicesOfType(string serviceType, IEnumerable<string> definedServices)
@@ -286,6 +298,9 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     update.NewVersion = entityState?.Attributes?.latest_version;
     update.EntityId = entityState?.EntityId;
     update.CalcHash();
+
+    mLogger.LogDebug($"*** EntityId: {update.EntityId}");
+    mLogger.LogDebug($"*** Hash: {update.Hash}");
 
     return update;
   }
@@ -415,78 +430,135 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   /// </summary>
   private void SetUpdateNotification()
   {
-    var persistentMessage = String.Empty;
-    var companionMessage = String.Empty;
     var hassUpdates = HassUpdates.Where(update => update.Type == UpdateType.HomeAssistant);
     var addonUpdates = HassUpdates.Where(update => update.Type == UpdateType.Addon);
-    var badgeCounter = 0;
+    var badgeCounter = hassUpdates.Count() + addonUpdates.Count() + HacsUpdates.Count() + EntityUpdates.Count();
 
-    if (hassUpdates.Any())
+    var allUpdates = new List<List<UpdateText>>()
+      {
+        hassUpdates.ToList(), addonUpdates.ToList(), HacsUpdates.ToList(), EntityUpdates.ToList()
+      };
+
+    var persistentMessage = SetPersistentMessage(allUpdates);
+    var companionMessage = SetMobiletMessage(allUpdates);
+
+    if (mPersistentNotification) SetPersistenNotification(mNotifyTitle, persistentMessage, mNotifyId);
+    if (mMobileNotifyServices.Any()) SetMobileNotification(mMobileNotifyServices, mNotifyTitle, companionMessage, mNotifyId);
+    if (mShowiOSBadge) SetIosBadgeCounter(mMobileNotifyServices, badgeCounter);
+  }
+
+  private string SetPersistentMessage(IEnumerable<IEnumerable<UpdateText>> updates)
+  {
+    var persistentMessage = String.Empty;
+
+    if (updates.Count() > 0 && updates.ElementAt(0).Any())
     {
       persistentMessage += "[Home Assistant](/config/dashboard)\n\n";
-      companionMessage += "Home Assistant\n";
-      foreach (var update in hassUpdates)
+      foreach (var update in updates.ElementAt(0))
       {
         persistentMessage += $"* **{update.Name}**: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        companionMessage += $"\u2022 {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        badgeCounter++;
       }
     }
-    if (addonUpdates.Any())
+    if (updates.Count() > 1 && updates.ElementAt(1).Any())
     {
       persistentMessage += $"\n\n[Add-ons](/config/dashboard)\n\n";
-      companionMessage += "Add-ons\n";
-      foreach (var update in addonUpdates)
+      foreach (var update in updates.ElementAt(1))
       {
         persistentMessage += $"* [**{update.Name}**]({update.Path}): {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        companionMessage += $"\u2022 {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        badgeCounter++;
       }
     }
-    if (HacsUpdates.Any())
+    if (updates.Count() > 2 && updates.ElementAt(2).Any())
     {
       persistentMessage += "\n\n[HACS](/hacs)\n\n";
-      companionMessage += "HACS\n";
-      foreach(var update in HacsUpdates)
+      foreach(var update in updates.ElementAt(2))
       {
         persistentMessage += $"* **{update.Name}**: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        companionMessage += $"\u2022 {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        badgeCounter++;
       }
     }
-    if (EntityUpdates.Any())
+    if (updates.Count() > 3 && updates.ElementAt(3).Any())
     {
       persistentMessage += "[Updates](/config/dashboard)\n\n";
-      foreach (var update in EntityUpdates)
+      foreach (var update in updates.ElementAt(3))
       {
         persistentMessage += $"* **{update.Name}**: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        companionMessage += $"\u2022 {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        badgeCounter++;
       }
     }
 
-    if (!String.IsNullOrEmpty(persistentMessage))
+    return persistentMessage;
+  }
+
+  private string SetMobiletMessage(IEnumerable<IEnumerable<UpdateText>> updates)
+  {
+    var companionMessage = String.Empty;
+
+    if (updates.Count() > 0 && updates.ElementAt(0).Any())
     {
-      // persistent notification
-      if (mPersistentNotification)
+      companionMessage += "Home Assistant\n";
+      foreach (var update in updates.ElementAt(0))
       {
-        mHaContext.CallService("persistent_notification", "create", data: new
-          {
-            title = mServiceDataTitle,
-            message = persistentMessage,
-            notification_id = mServiceDataId
-          });
+        companionMessage += $"\u2022 {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
       }
-      // mobile notification
-      foreach (var notifyService in mMobileNotifyServices)
+    }
+    if (updates.Count() > 1 && updates.ElementAt(1).Any())
+    {
+      companionMessage += "Add-ons\n";
+      foreach (var update in updates.ElementAt(1))
       {
-        mHaContext.CallService("notify", notifyService, data: new
+        companionMessage += $"\u2022 {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
+      }
+    }
+    if (updates.Count() > 2 && updates.ElementAt(2).Any())
+    {
+      companionMessage += "HACS\n";
+      foreach(var update in updates.ElementAt(2))
+      {
+        companionMessage += $"\u2022 {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
+      }
+    }
+    if (updates.Count() > 3 && updates.ElementAt(3).Any())
+    {
+      foreach (var update in updates.ElementAt(3))
+      {
+        companionMessage += $"\u2022 {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
+      }
+    }
+
+    return companionMessage;
+  }
+
+  private void SetPersistenNotification(string title, string message, string id)
+  {
+    if (!String.IsNullOrEmpty(message))
+    {
+      mHaContext.CallService("persistent_notification", "create", data: new
+        {
+          title = title,
+          message = message,
+          notification_id = id
+        });
+    }
+    else
+    {
+      mHaContext.CallService("persistent_notification", "dismiss", data: new
+        {
+          notification_id = id
+        });
+    }
+  }
+
+  private void SetMobileNotification(IEnumerable<string> services, string title, string message, string tag)
+  {
+    foreach (var service in services)
+    {
+      if (!String.IsNullOrEmpty(message))
+      {
+        mHaContext.CallService("notify", service, data: new
           {
-            title = mServiceDataTitle,
-            message = companionMessage,
+            title = title,
+            message = message,
             data = new
               {
-                tag = mServiceDataId,
+                tag = tag,
                 url = "/config/dashboard",          // iOS URL
                 clickAction = "/config/dashboard",  // Android URL
                 actions = new List<object>
@@ -506,59 +578,52 @@ public class NotifyOnUpdateApp : IAsyncInitializable
                 }
               }
           });
-
-        if (mShowiOSBadge)
-        {
-          mHaContext.CallService("notify", notifyService, data: new
-            {
-              message = "delete_alert",
-              data = new
-                {
-                  push = new
-                    {
-                      badge = badgeCounter
-                    }
-                }
-            });
-        }
       }
-    }
-    else
-    {
-      // persistent notification
-      if (mPersistentNotification)
+      else
       {
-        mHaContext.CallService("persistent_notification", "dismiss", data: new
-          {
-            notification_id = mServiceDataId
-          });
-      }
-      // mobile notification
-      foreach (var notifyService in mMobileNotifyServices)
-      {
-        mHaContext.CallService("notify", notifyService, data: new
+        mHaContext.CallService("notify", service, data: new
           {
             message = "clear_notification",
             data = new
               {
-                tag = mServiceDataId
+                tag = tag
               }
           });
+      }
+    }
+  }
 
-        if (mShowiOSBadge)
-        {
-          mHaContext.CallService("notify", notifyService, data: new
-            {
-              message = "delete_alert",
-              data = new
-                {
-                  push = new
-                    {
-                      badge = 0
-                    }
-                }
-            });
-        }
+  private void SetIosBadgeCounter(IEnumerable<string> services, int counter)
+  {
+    foreach (var service in services)
+    {
+      if (counter > 0)
+      {
+        mHaContext.CallService("notify", service, data: new
+          {
+            message = "delete_alert",
+            data = new
+              {
+                push = new
+                  {
+                    badge = counter
+                  }
+              }
+          });
+      }
+      else
+      {
+        mHaContext.CallService("notify", service, data: new
+          {
+            message = "delete_alert",
+            data = new
+              {
+                push = new
+                  {
+                    badge = 0
+                  }
+              }
+          });
       }
     }
   }
