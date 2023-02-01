@@ -1,9 +1,9 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/integration)
 [![netdaemon_badge](https://img.shields.io/badge/NetDaemon-v3-pink)](https://netdaemon.xyz/docs/v3)
 
-# Update Notifications
+# NetDaemonApp: Notify on Update
 A NetDaemon App that will notify you if there is an update available in Home Assistant.  
-This notification can be sent as a persistent notification or to your mobile devices if you are using the [companion app](https://companion.home-assistant.io/).  
+This notification can be set as a persistent notification or send to your mobile devices if you are using the [companion app](https://companion.home-assistant.io/).  
 
 This App can display updates for:  
 - Home Assistant Core
@@ -11,14 +11,14 @@ This App can display updates for:
 - Home Assistant Supervisor
 - Home Assistant Addon's
 - HACS Repositories
-  
+
 ## Installation
-1. Install the [NetDaemon v3](https://netdaemon.xyz/docs/v3/started/installation) Addon
-2. Change the addon option "app_config_folder" to "/config/netdaemon" (since NetDaemon v3 is still in beta)
+1. Install the [NetDaemon V3.X](https://netdaemon.xyz/docs/v3/started/installation) Addon
+2. Change the addon option "app_config_folder" to "/config/netdaemon"
 3. Install [HACS](https://hacs.xyz/docs/setup/download)
 4. In Home Assistant go to HACS -> Automation -> Add repository -> Search for "Notify on Update"
 5. Download this repository with HACS
-6. Restart the NetDaemon v3 Addon
+6. Restart the NetDaemon V3 Addon
 
 ## Configuration  
 
