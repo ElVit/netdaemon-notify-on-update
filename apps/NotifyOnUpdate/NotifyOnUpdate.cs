@@ -25,12 +25,13 @@ public class NotifyOnUpdateConfig
   public string? NotifyId { get; set; }
   public bool? PersistentNotification { get; set; }
   public bool? ShowiOSBadge { get; set; }
+  public string? GetUpdatesMechanism { get; set; }
   public IEnumerable<string>? GetUpdatesFor { get; set; }
   public IEnumerable<string>? MobileNotifyServices { get; set; }
 }
 
 /// <summary>
-/// Creates a persistent notification in Home Assistant if a new Updates is available
+/// Creates a notification in Home Assistant if an update is available
 /// </summary>
 [NetDaemonApp]
 public class NotifyOnUpdateApp : IAsyncInitializable
@@ -39,14 +40,16 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   private readonly IHaContext mHaContext;
   private readonly IHomeAssistantConnection mHaConnection;
   private readonly ILogger<NotifyOnUpdateApp> mLogger;
-  private string mServiceDataTitle;
-  private string mServiceDataId;
+  private string mNotifyTitle;
+  private string mNotifyId;
   private bool mPersistentNotification;
   private bool mShowiOSBadge;
+  private UpdateMechanism mGetUpdatesMechanism;
   private IEnumerable<string> mGetUpdatesFor;
   private IEnumerable<string> mMobileNotifyServices;
   private IEnumerable<UpdateText> mHassUpdates = new List<UpdateText>();
   private IEnumerable<UpdateText> mHacsUpdates = new List<UpdateText>();
+  private IEnumerable<UpdateText> mEntityUpdates = new List<UpdateText>();
 
   private IEnumerable<UpdateText> HassUpdates
   {
@@ -57,7 +60,7 @@ public class NotifyOnUpdateApp : IAsyncInitializable
       {
         mHassUpdates = value;
         mLogger.LogInformation("Home Assistant update list changed.");
-        SetPersistentNotification();
+        SetUpdateNotification();
       }
     }
   }
@@ -71,27 +74,64 @@ public class NotifyOnUpdateApp : IAsyncInitializable
       {
         mHacsUpdates = value;
         mLogger.LogInformation("Hacs update list changed.");
-        SetPersistentNotification();
+        SetUpdateNotification();
+      }
+    }
+  }
+
+  private IEnumerable<UpdateText> EntityUpdates
+  {
+    get => mEntityUpdates ?? new List<UpdateText>();
+    set
+    {
+      if (value != null && (!IsEqual(mEntityUpdates, value)))
+      {
+        mEntityUpdates = value;
+        mLogger.LogInformation("Entity update list changed.");
+        SetUpdateNotification();
       }
     }
   }
 
   public async Task InitializeAsync(CancellationToken cancellationToken)
   {
+    mLogger.LogDebug($"*** InitializeAsync started ***");
+
     // Check if user defined notify services are valid
     mMobileNotifyServices = await GetServicesOfType("notify", mMobileNotifyServices);
 
-    // Get Home Assistant Updates once at startup;
-    HassUpdates = await GetHassUpdates();
+    if (mGetUpdatesMechanism == UpdateMechanism.UpdateEntities)
+    {
+      mLogger.LogDebug($"*** UpdateMechanism == UpdateEntities ***");
 
-    // Get Hacs Updates once at statup
-    HacsUpdates = GetHacsUpdates();
+      var updateEntities = mHaContext.GetAllEntities().Where(entity => entity.EntityId.StartsWith("update."));
+      var updateList = new List<UpdateText>();
+      foreach (var entity in updateEntities)
+      {
+        var updateEntity = new Entity<UpdateAttributes>(entity);
+        var updateText = GetEntityUpdate(updateEntity.EntityState);
+        if (updateText != null) updateList.Add(updateText);
+      }
+      EntityUpdates = updateList;
+    }
+    else if (mGetUpdatesMechanism == UpdateMechanism.RestAPI)
+    {
+      mLogger.LogDebug($"*** UpdateMechanism == RestAPI ***");
+
+      // Get Home Assistant Updates once at startup;
+      HassUpdates = await GetHassUpdates();
+
+      // Get Hacs Updates once at statup
+      HacsUpdates = GetHacsUpdates();
+    }
 
     // Remove old notifications or app badge if there are no updates available
-    if (!HacsUpdates.Any() || !HassUpdates.Any())
+    if (!HacsUpdates.Any() || !HassUpdates.Any() || !EntityUpdates.Any())
     {
-      SetPersistentNotification();
+      SetUpdateNotification();
     }
+
+    mLogger.LogDebug($"*** InitializeAsync finished ***");
   }
 
   public NotifyOnUpdateApp(IHaContext ha, INetDaemonScheduler scheduler,
@@ -103,25 +143,43 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     mHaConnection = haConnection;
     mLogger = logger;
 
+    mLogger.LogDebug($"*** Constructor started ***");
+
     // Check options against null and set a default value if true
-    mServiceDataTitle = config.Value.NotifyTitle ?? "Updates pending in Home Assistant";
-    mServiceDataId = config.Value.NotifyId ?? "updates_available";
+    mNotifyTitle = config.Value.NotifyTitle ?? "Updates pending in Home Assistant";
+    mNotifyId = config.Value.NotifyId ?? "updates_available";
     mPersistentNotification = config.Value.PersistentNotification ?? true;
     mShowiOSBadge = config.Value.ShowiOSBadge ?? true;
     mGetUpdatesFor = config.Value.GetUpdatesFor ?? new List<string>();
     mMobileNotifyServices = config.Value.MobileNotifyServices ?? new List<string>();
     var updateTime = config.Value.UpdateTimeInSec ?? 30;
 
+    switch (config.Value.GetUpdatesMechanism)
+    {
+      case "rest_api":
+        mGetUpdatesMechanism = UpdateMechanism.RestAPI;
+        mLogger.LogInformation("REST-API is used to get updates.");
+        break;
+      case "update_entities":
+        mGetUpdatesMechanism = UpdateMechanism.UpdateEntities;
+        mLogger.LogInformation("Update entities are used to get updates.");
+        break;
+      default:
+        mGetUpdatesMechanism = UpdateMechanism.RestAPI;
+        mLogger.LogInformation("REST-API is used to get updates.");
+        break;
+    }
+
     // Check options against empty/invalid values and set a default value if true
     if (String.IsNullOrEmpty(config.Value.NotifyTitle))
     {
       mLogger.LogWarning("Option 'NotifyTitle' not found. Default value 'Updates pending in Home Assistant' is used.");
-      mServiceDataTitle = "Updates pending in Home Assistant";
+      mNotifyTitle = "Updates pending in Home Assistant";
     }
     if (String.IsNullOrEmpty(config.Value.NotifyId))
     {
       mLogger.LogWarning("Option 'NotifyId' not found. Default value 'updates_available' is used.");
-      mServiceDataId = "updates_available";
+      mNotifyId = "updates_available";
     }
     if (config.Value.PersistentNotification == null)
     {
@@ -131,35 +189,62 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     {
       mLogger.LogWarning("Option 'ShowiOSBadge' not found. Default value 'true' is used.");
     }
-    if (config.Value.GetUpdatesFor == null || !config.Value.GetUpdatesFor.Any())
+    if (mGetUpdatesMechanism == UpdateMechanism.RestAPI)
     {
-      mLogger.LogWarning("Option 'GetUpdatesFor' not found. Default values 'Core, OS, Supervisor, HACS' are used.");
-      mGetUpdatesFor = new List<string>() { "Core", "OS", "Supervisor", "HACS" };
+      if (config.Value.GetUpdatesFor == null || !config.Value.GetUpdatesFor.Any())
+      {
+        mLogger.LogWarning("Option 'GetUpdatesFor' not found. Default values 'Core, OS, Supervisor, HACS' are used.");
+        mGetUpdatesFor = new List<string>() { "Core", "OS", "Supervisor", "HACS" };
+      }
     }
     if (config.Value.UpdateTimeInSec == null || config.Value.UpdateTimeInSec <= 0)
     {
       mLogger.LogWarning("Option 'UpdateTimeInSec' not found. Default value '30' is used.");
     }
 
-    // Get Home Assistant Updates cyclic
-    try
+    if (mGetUpdatesMechanism == UpdateMechanism.UpdateEntities)
     {
-      scheduler.RunEvery(TimeSpan.FromSeconds(updateTime), async() =>
+      // Get entity updates on state change
+      var updateEntities = mHaContext.GetAllEntities().Where(entity => entity.EntityId.StartsWith("update."));
+      foreach (var entity in updateEntities)
+      {
+        var updateEntity = new Entity<UpdateAttributes>(entity);
+        updateEntity.StateAllChanges().Subscribe(state =>
+          {
+            var newUpdateText = GetEntityUpdate(state.New);
+            var oldUpdateText = EntityUpdates.SingleOrDefault(entity => entity.EntityId == state.New?.EntityId);
+            if (oldUpdateText?.Hash == newUpdateText?.Hash) return;
+
+            var updateList = EntityUpdates.Where(entity => entity.EntityId != state.New?.EntityId).ToList();
+            if (newUpdateText != null) updateList.Add(newUpdateText);
+            EntityUpdates = updateList;
+          });
+      }
+    }
+    else if (mGetUpdatesMechanism == UpdateMechanism.RestAPI)
+    {
+      // Get Home Assistant updates cyclic
+      try
+      {
+        scheduler.RunEvery(TimeSpan.FromSeconds(updateTime), async() =>
+          {
+            HassUpdates = await GetHassUpdates();
+          });
+      }
+      catch (Exception e)
+      {
+        mLogger.LogError("Exception caught: ", e);
+      }
+
+      // Get Hacs updates on state change
+      var hacs = new NumericEntity<HacsAttributes>(mHaContext, "sensor.hacs");
+      hacs.StateAllChanges().Subscribe(state =>
         {
-          HassUpdates = await GetHassUpdates();
+          HacsUpdates = GetHacsUpdates(state.New);
         });
     }
-    catch (Exception e)
-    {
-      mLogger.LogError("Exception caught: ", e);
-    }
 
-    // Get Hacs Updates on state change
-    var hacs = new NumericEntity<HacsAttributes>(mHaContext, "sensor.hacs");
-    hacs.StateAllChanges().Subscribe(s =>
-      {
-        HacsUpdates = GetHacsUpdates(s.New);
-      });
+    mLogger.LogDebug($"*** Constructor finished ***");
   }
 
   private async Task<IEnumerable<string>> GetServicesOfType(string serviceType, IEnumerable<string> definedServices)
@@ -200,8 +285,25 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   private bool IsEqual(IEnumerable<UpdateText> list1, IEnumerable<UpdateText> list2)
   {
     return Enumerable.SequenceEqual(
-      list1.Select(x => x.hash).OrderBy(x => x),
-      list2.Select(x => x.hash).OrderBy(x => x));
+      list1.Select(element => element.Hash).OrderBy(element => element),
+      list2.Select(element => element.Hash).OrderBy(element => element));
+  }
+
+  private UpdateText? GetEntityUpdate(EntityState<UpdateAttributes>? entityState)
+  {
+    if (entityState?.State != "on") return null;
+
+    var update = new UpdateText(UpdateType.Entity);
+    update.Name = entityState?.Attributes?.friendly_name?.Replace(" update", "", true, null);
+    update.CurrentVersion = entityState?.Attributes?.installed_version;
+    update.NewVersion = entityState?.Attributes?.latest_version;
+    update.EntityId = entityState?.EntityId;
+    update.CalcHash();
+
+    mLogger.LogDebug($"*** EntityId: {update.EntityId}");
+    mLogger.LogDebug($"*** Hash: {update.Hash}");
+
+    return update;
   }
 
   /// <summary>
@@ -209,8 +311,8 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   /// </summary>
   private IEnumerable<UpdateText> GetHacsUpdates(NumericEntityState<HacsAttributes>? hacs = null)
   {
-    var updates = new List<UpdateText>();
-    if (!mGetUpdatesFor.Contains("HACS")) return updates;
+    var updateList = new List<UpdateText>();
+    if (!mGetUpdatesFor.Contains("HACS")) return updateList;
 
     if (hacs == null)
     {
@@ -223,11 +325,16 @@ public class NotifyOnUpdateApp : IAsyncInitializable
     {
       foreach (var repo in hacsRepos)
       {
-        updates.Add(new UpdateText(UpdateType.Hacs, repo.display_name?.ToString(), repo.installed_version?.ToString(), repo.available_version?.ToString()));
+        var update = new UpdateText(UpdateType.Hacs);
+        update.Name = repo.display_name;
+        update.CurrentVersion = repo.installed_version;
+        update.NewVersion = repo.available_version;
+        update.CalcHash();
+        updateList.Add(update);
       }
     }
 
-    return updates;
+    return updateList;
   }
 
   /// <summary>
@@ -244,36 +351,47 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   }
 
   /// <summary>
-  /// Extracts the relevant update informations of a CURL Response Data
+  /// Extracts the relevant update informations of a CURL response data
   /// </summary>
   private async Task<IEnumerable<UpdateText>> GetVersionsByCurl(string versionType)
   {
-    var updates = new List<UpdateText>();
+    var updateList = new List<UpdateText>();
     var curlData = await GetCurlData(versionType);
 
     if (curlData?.update_available ?? false)
     {
-      updates.Add(new UpdateText(UpdateType.HomeAssistant, versionType, curlData?.version, curlData?.version_latest));
+      var update = new UpdateText(UpdateType.HomeAssistant);
+      update.Name = versionType;
+      update.CurrentVersion = curlData?.version;
+      update.NewVersion = curlData?.version_latest;
+      update.CalcHash();
+      updateList.Add(update);
     }
 
-    if (curlData?.addons != null && curlData.addons.Where(x => x.update_available != null).Any(x => x.update_available == true))
+    if (curlData?.addons != null && curlData.addons.Where(addon => addon.update_available != null).Any(addon => addon.update_available == true))
     {
       foreach (var addon in curlData.addons)
       {
         var addon_update_available = addon?.update_available ?? false;
         if (addon_update_available)
         {
-          updates.Add(new UpdateText(UpdateType.Addon, addon?.name, addon?.version, addon?.version_latest, $"/hassio/addon/{addon?.slug}/info"));
+          var update = new UpdateText(UpdateType.Addon);
+          update.Name = addon?.name;
+          update.CurrentVersion = addon?.version;
+          update.NewVersion = addon?.version_latest;
+          update.Path = $"/hassio/addon/{addon?.slug}/info";
+          update.CalcHash();
+          updateList.Add(update);
         }
       }
     }
 
-    return updates;
+    return updateList;
   }
 
   /// <summary>
   /// Sends a CURL (HTTP GET Request) message to get the current installed and newest
-  /// available versions of Home Assistant and its Addons
+  /// available versions of Home Assistant and its addons
   /// </summary>
   private async Task<CurlData?> GetCurlData(string versionType)
   {
@@ -311,142 +429,202 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   /// <summary>
   /// Sets a notification if there are any updates available
   /// </summary>
-  private void SetPersistentNotification()
+  private void SetUpdateNotification()
+  {
+    var hassUpdates = HassUpdates.Where(update => update.Type == UpdateType.HomeAssistant);
+    var addonUpdates = HassUpdates.Where(update => update.Type == UpdateType.Addon);
+    var badgeCounter = hassUpdates.Count() + addonUpdates.Count() + HacsUpdates.Count() + EntityUpdates.Count();
+
+    var allUpdates = new List<List<UpdateText>>()
+      {
+        hassUpdates.ToList(), addonUpdates.ToList(), HacsUpdates.ToList(), EntityUpdates.ToList()
+      };
+
+    var persistentMessage = SetPersistentMessage(allUpdates);
+    var companionMessage = SetMobiletMessage(allUpdates);
+
+    if (mPersistentNotification) SetPersistenNotification(mNotifyTitle, persistentMessage, mNotifyId);
+    if (mMobileNotifyServices.Any()) SetMobileNotification(mMobileNotifyServices, mNotifyTitle, companionMessage, mNotifyId);
+    if (mShowiOSBadge) SetIosBadgeCounter(mMobileNotifyServices, badgeCounter);
+  }
+
+  private string SetPersistentMessage(IEnumerable<IEnumerable<UpdateText>> updates)
   {
     var persistentMessage = String.Empty;
-    var companionMessage = String.Empty;
-    var hassUpdates = HassUpdates.Where(x => x.Type == UpdateType.HomeAssistant);
-    var addonUpdates = HassUpdates.Where(x => x.Type == UpdateType.Addon);
-    var badgeCounter = 0;
 
-    if (hassUpdates.Any())
+    if (updates.Count() > 0 && updates.ElementAt(0).Any())
     {
       persistentMessage += "[Home Assistant](/config/dashboard)\n\n";
-      companionMessage += "Home Assistant\n";
-      foreach (var update in hassUpdates)
+      foreach (var update in updates.ElementAt(0))
       {
         persistentMessage += $"* **{update.Name}**: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        companionMessage += $"- {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        badgeCounter++;
       }
     }
-    if (addonUpdates.Any())
+    if (updates.Count() > 1 && updates.ElementAt(1).Any())
     {
       persistentMessage += $"\n\n[Add-ons](/config/dashboard)\n\n";
-      companionMessage += "Add-ons\n";
-      foreach (var update in addonUpdates)
+      foreach (var update in updates.ElementAt(1))
       {
         persistentMessage += $"* [**{update.Name}**]({update.Path}): {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        companionMessage += $"- {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        badgeCounter++;
       }
     }
-    if (HacsUpdates.Any())
+    if (updates.Count() > 2 && updates.ElementAt(2).Any())
     {
       persistentMessage += "\n\n[HACS](/hacs)\n\n";
-      companionMessage += "HACS\n";
-      foreach(var update in HacsUpdates)
+      foreach(var update in updates.ElementAt(2))
       {
         persistentMessage += $"* **{update.Name}**: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        companionMessage += $"- {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
-        badgeCounter++;
+      }
+    }
+    if (updates.Count() > 3 && updates.ElementAt(3).Any())
+    {
+      persistentMessage += "[Updates](/config/dashboard)\n\n";
+      foreach (var update in updates.ElementAt(3))
+      {
+        persistentMessage += $"* **{update.Name}**: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
       }
     }
 
-    if (!String.IsNullOrEmpty(persistentMessage))
-    {
-      // persistent notification
-      if (mPersistentNotification)
-      {
-        mHaContext.CallService("persistent_notification", "create", data: new
-          {
-            title = mServiceDataTitle,
-            message = persistentMessage,
-            notification_id = mServiceDataId
-          });
-      }
-      // mobile notification
-      foreach (var notifyService in mMobileNotifyServices)
-      {
-        mHaContext.CallService("notify", notifyService, data: new
-        {
-          title = mServiceDataTitle,
-          message = companionMessage,
-          data = new
-          {
-            tag = mServiceDataId,
-            url = "/config/dashboard",          // iOS URL
-            clickAction = "/config/dashboard",  // Android URL
-            actions = new List<object>
-            {
-              new
-              {
-                action = "URI",
-                title = "Open Addons",
-                uri = "/hassio/dashboard"
-              },
-              new
-              {
-                action = "URI",
-                title = "Open HACS",
-                uri = "/hacs"
-              },
-            }
-          }
-        });
+    return persistentMessage;
+  }
 
-        if (mShowiOSBadge)
-        {
-          mHaContext.CallService("notify", notifyService, data: new
-            {
-              message = "delete_alert",
-              data = new
-              {
-                push = new
-                {
-                  badge = badgeCounter
-                }
-              }
-            });
-        }
+  private string SetMobiletMessage(IEnumerable<IEnumerable<UpdateText>> updates)
+  {
+    var companionMessage = String.Empty;
+
+    if (updates.Count() > 0 && updates.ElementAt(0).Any())
+    {
+      companionMessage += "Home Assistant\n";
+      foreach (var update in updates.ElementAt(0))
+      {
+        companionMessage += $"\u2022 {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
       }
+    }
+    if (updates.Count() > 1 && updates.ElementAt(1).Any())
+    {
+      companionMessage += "Add-ons\n";
+      foreach (var update in updates.ElementAt(1))
+      {
+        companionMessage += $"\u2022 {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
+      }
+    }
+    if (updates.Count() > 2 && updates.ElementAt(2).Any())
+    {
+      companionMessage += "HACS\n";
+      foreach(var update in updates.ElementAt(2))
+      {
+        companionMessage += $"\u2022 {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
+      }
+    }
+    if (updates.Count() > 3 && updates.ElementAt(3).Any())
+    {
+      foreach (var update in updates.ElementAt(3))
+      {
+        companionMessage += $"\u2022 {update.Name}: {update.CurrentVersion} \u27A1 {update.NewVersion}\n";
+      }
+    }
+
+    return companionMessage;
+  }
+
+  private void SetPersistenNotification(string title, string message, string id)
+  {
+    if (!String.IsNullOrEmpty(message))
+    {
+      mHaContext.CallService("persistent_notification", "create", data: new
+        {
+          title = title,
+          message = message,
+          notification_id = id
+        });
     }
     else
     {
-      // persistent notification
-      if (mPersistentNotification)
-      {
-        mHaContext.CallService("persistent_notification", "dismiss", data: new
-          {
-            notification_id = mServiceDataId
-          });
-      }
-      // mobile notification
-      foreach (var notifyService in mMobileNotifyServices)
-      {
-        mHaContext.CallService("notify", notifyService, data: new
+      mHaContext.CallService("persistent_notification", "dismiss", data: new
         {
-          message = "clear_notification",
-          data = new
-          {
-            tag = mServiceDataId
-          }
+          notification_id = id
         });
+    }
+  }
 
-        if (mShowiOSBadge)
-        {
-          mHaContext.CallService("notify", notifyService, data: new
-            {
-              message = "delete_alert",
-              data = new
+  private void SetMobileNotification(IEnumerable<string> services, string title, string message, string tag)
+  {
+    foreach (var service in services)
+    {
+      if (!String.IsNullOrEmpty(message))
+      {
+        mHaContext.CallService("notify", service, data: new
+          {
+            title = title,
+            message = message,
+            data = new
               {
-                push = new
+                tag = tag,
+                url = "/config/dashboard",          // iOS URL
+                clickAction = "/config/dashboard",  // Android URL
+                actions = new List<object>
                 {
-                  badge = 0
+                  new
+                    {
+                      action = "URI",
+                      title = "Open Addons",
+                      uri = "/hassio/dashboard"
+                    },
+                  new
+                    {
+                      action = "URI",
+                      title = "Open HACS",
+                      uri = "/hacs"
+                    },
                 }
               }
-            });
-        }
+          });
+      }
+      else
+      {
+        mHaContext.CallService("notify", service, data: new
+          {
+            message = "clear_notification",
+            data = new
+              {
+                tag = tag
+              }
+          });
+      }
+    }
+  }
+
+  private void SetIosBadgeCounter(IEnumerable<string> services, int counter)
+  {
+    foreach (var service in services)
+    {
+      if (counter > 0)
+      {
+        mHaContext.CallService("notify", service, data: new
+          {
+            message = "delete_alert",
+            data = new
+              {
+                push = new
+                  {
+                    badge = counter
+                  }
+              }
+          });
+      }
+      else
+      {
+        mHaContext.CallService("notify", service, data: new
+          {
+            message = "delete_alert",
+            data = new
+              {
+                push = new
+                  {
+                    badge = 0
+                  }
+              }
+          });
       }
     }
   }
@@ -454,26 +632,32 @@ public class NotifyOnUpdateApp : IAsyncInitializable
 
 enum UpdateType
 {
-  HomeAssistant, Addon, Hacs
+  HomeAssistant, Addon, Hacs, Entity
+}
+
+enum UpdateMechanism
+{
+  RestAPI, UpdateEntities
 }
 
 internal class UpdateText
 {
   public UpdateType Type { get; }
-  public string? Name { get; }
-  public string? Path { get; }
-  public string? CurrentVersion { get; }
-  public string? NewVersion { get; }
-  public int hash { get; }
+  public string? Name { get; set; }
+  public string? Path { get; set; }
+  public string? CurrentVersion { get; set; }
+  public string? NewVersion { get; set; }
+  public string? EntityId { get; set; }
+  public int Hash { get; private set;}
 
-  public UpdateText(UpdateType type, string? name, string? currentVersion, string? newVersion, string? path = null)
+  public UpdateText(UpdateType type)
   {
     Type = type;
-    Name = name;
-    Path = path;
-    CurrentVersion = currentVersion;
-    NewVersion = newVersion;
-    hash = HashCode.Combine(type, name, path, currentVersion, newVersion);
+  }
+
+  public void CalcHash()
+  {
+    Hash = HashCode.Combine(Type, Name, Path, CurrentVersion, NewVersion, EntityId);
   }
 }
 
@@ -511,4 +695,12 @@ record HacsRepositories
   public string? display_name { get; init; }
   public string? installed_version { get; init; }
   public string? available_version { get; init; }
+}
+
+record UpdateAttributes
+{
+  public string? installed_version { get; init; }
+  public string? latest_version { get; init; }
+  public string? title { get; init; }
+  public string? friendly_name { get; init; }
 }

@@ -4,6 +4,7 @@ NotifyOnUpdate.NotifyOnUpdateConfig:
   NotifyId: updates_available
   PersistentNotification: true
   ShowiOSBadge: true
+  GetUpdatesMechanism: rest_api
   GetUpdatesFor:
     - Core
     - OS
