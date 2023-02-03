@@ -73,19 +73,17 @@ If set to `true` you will see the count of updates in the app icon badge of the 
 
 Home Assistant 2022.4 introduced a new feature called [update entity](https://www.home-assistant.io/integrations/update/).  
 To use this feature just set this option to `update_entities`.  
-At the moment (08.08.2022) HACS does not support the update entities feature officially.  
-But you can enable the update entities also for HACS by activating the [experimental features](https://hacs.xyz/docs/configuration/options) in HACS.  
-To use the old mechanism set this option to `rest_api`.  
+To use the old mechanism to get updates set this option to `rest_api`.  
 *Possible values:* &nbsp; `update_entities, rest_api`.  
-*Default value:* &nbsp;&nbsp;&nbsp; `rest_api`  
+*Default value:* &nbsp;&nbsp;&nbsp; `update_entities`  
 
 __NOTE:__ If this option is set to `update_entities` then the option `GetUpdatesFor` will have no effect.  
 
 ### Option: `GetUpdatesFor`
 
 Here you can define a list of update types to be displayed when a new update is available.  
-*Possible values:* &nbsp; `Core, OS, Supervisor and HACS`.  
-*Default value:* &nbsp;&nbsp;&nbsp; `(all possible types, see above)`  
+*Possible values:* &nbsp; `Core, OS, Supervisor, HACS`.  
+*Default value:* &nbsp;&nbsp;&nbsp; `none`  
 
 __NOTE:__ If the `Supervisor` updates are disabled then you will also NOT be notified about any Home Assistant addon updates.  
 
