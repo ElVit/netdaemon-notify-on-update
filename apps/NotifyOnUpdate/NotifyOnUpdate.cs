@@ -531,19 +531,11 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   {
     if (!String.IsNullOrEmpty(message))
     {
-      mHaContext.CallService("persistent_notification", "create", data: new
-        {
-          title = title,
-          message = message,
-          notification_id = id
-        });
+      mHaContext.CallService("persistent_notification", "create", data: new { title = title, message = message, notification_id = id });
     }
     else
     {
-      mHaContext.CallService("persistent_notification", "dismiss", data: new
-        {
-          notification_id = id
-        });
+      mHaContext.CallService("persistent_notification", "dismiss", data: new { notification_id = id });
     }
   }
 
@@ -555,41 +547,22 @@ public class NotifyOnUpdateApp : IAsyncInitializable
       {
         mHaContext.CallService("notify", service, data: new
           {
-            title = title,
-            message = message,
+            title = title, message = message,
             data = new
               {
-                tag = tag,
-                url = "/config/dashboard",          // iOS URL
-                clickAction = "/config/dashboard",  // Android URL
+                tag = tag, url = "/config/dashboard", /* iOS URL */
+                clickAction = "/config/dashboard", /* Android URL */
                 actions = new List<object>
                 {
-                  new
-                    {
-                      action = "URI",
-                      title = "Open Addons",
-                      uri = "/hassio/dashboard"
-                    },
-                  new
-                    {
-                      action = "URI",
-                      title = "Open HACS",
-                      uri = "/hacs"
-                    },
+                  new { action = "URI", title = "Open Addons", uri = "/hassio/dashboard" },
+                  new { action = "URI", title = "Open HACS", uri = "/hacs" },
                 }
               }
           });
       }
       else
       {
-        mHaContext.CallService("notify", service, data: new
-          {
-            message = "clear_notification",
-            data = new
-              {
-                tag = tag
-              }
-          });
+        mHaContext.CallService("notify", service, data: new { message = "clear_notification", data = new { tag = tag }});
       }
     }
   }
@@ -598,34 +571,8 @@ public class NotifyOnUpdateApp : IAsyncInitializable
   {
     foreach (var service in services)
     {
-      if (counter > 0)
-      {
-        mHaContext.CallService("notify", service, data: new
-          {
-            message = "delete_alert",
-            data = new
-              {
-                push = new
-                  {
-                    badge = counter
-                  }
-              }
-          });
-      }
-      else
-      {
-        mHaContext.CallService("notify", service, data: new
-          {
-            message = "delete_alert",
-            data = new
-              {
-                push = new
-                  {
-                    badge = 0
-                  }
-              }
-          });
-      }
+      var badgeCounter = counter > 0 ? counter : 0;
+      mHaContext.CallService("notify", service, data: new { message = "delete_alert", data = new { push = new { badge = badgeCounter }}});
     }
   }
 }
