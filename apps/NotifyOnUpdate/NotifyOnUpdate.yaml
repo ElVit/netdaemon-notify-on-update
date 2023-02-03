@@ -4,11 +4,6 @@ NotifyOnUpdate.NotifyOnUpdateConfig:
   NotifyId: updates_available
   PersistentNotification: true
   ShowiOSBadge: true
-  GetUpdatesMechanism: rest_api
-  GetUpdatesFor:
-    - Core
-    - OS
-    - Supervisor
-    - HACS
+  GetUpdatesMechanism: update_entities
   MobileNotifyServices:
     - notify.mobile_app_myphone
