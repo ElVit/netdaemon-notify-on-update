@@ -1,6 +1,13 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/integration)
 [![netdaemon_badge](https://img.shields.io/badge/NetDaemon-v3-pink)](https://netdaemon.xyz/docs/v3)
 
+# DEPRECATED
+NetDaemon apps are deprecated and will be removed in version 2.0.0 of HACS.  
+Note that apps that use current V3 version of the NetDaemon runtime is not supported at all.  
+[See HACS Notice](https://hacs.xyz/docs/categories/netdaemon_apps/)
+
+---
+
 # NetDaemonApp: Notify on Update
 A NetDaemon App that will notify you if there is an update available in Home Assistant.  
 This notification can be set as a persistent notification or send to your mobile devices if you are using the [companion app](https://companion.home-assistant.io/).  
